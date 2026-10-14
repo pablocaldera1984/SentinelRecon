@@ -1,3 +1,4 @@
+# api.py
 import os
 import asyncio
 from fastapi import FastAPI, HTTPException
@@ -7,11 +8,16 @@ from pydantic import BaseModel
 from modules.dns_scanner import scan_dns_email
 from modules.web_scanner import scan_web_crypto
 from modules.port_scanner import scan_critical_ports
+from modules.identity_scanner import scan_identity_exposure
+from modules.brand_typosquatting_scanner import scan_brand_typosquatting
+from modules.shadow_dns_scanner import scan_shadow_dns_and_takeover
+from modules.kev_epss_scanner import scan_kev_epss_prioritization
+from modules.cloud_leak_scanner import scan_cloud_storage_leaks
+
 from core.scoring import evaluate_security_posture
 from core.report_ai import generate_executive_analysis
-from core.pdf_generator import generate_html_report
 
-app = FastAPI(title="SentinelRecon API", version="1.0.0")
+app = FastAPI(title="SentinelRecon EASM & DRPS API", version="2.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -21,12 +27,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 class ScanRequest(BaseModel):
     domain: str
 
+
 @app.get("/")
 def health_check():
-    return {"status": "ok", "service": "SentinelRecon EASM"}
+    return {"status": "ok", "service": "SentinelRecon EASM + DRPS + TPRM v2.0"}
+
 
 @app.post("/api/scan")
 async def run_scan(payload: ScanRequest):
@@ -35,40 +44,67 @@ async def run_scan(payload: ScanRequest):
         raise HTTPException(status_code=400, detail="Debe proporcionar un dominio válido.")
 
     try:
-        # 1. Escaneo Asíncrono en Paralelo (< 3 seg)
-        dns_res, web_res, port_res = await asyncio.gather(
+        # 1. Escaneo Asíncrono en Paralelo de los 7 motores
+        (
+            dns_res,
+            web_res,
+            port_res,
+            identity_res,
+            typo_res,
+            shadow_res,
+            cloud_res
+        ) = await asyncio.gather(
             scan_dns_email(domain),
             scan_web_crypto(domain),
-            scan_critical_ports(domain)
+            scan_critical_ports(domain),
+            scan_identity_exposure(domain),
+            scan_brand_typosquatting(domain),
+            scan_shadow_dns_and_takeover(domain),
+            scan_cloud_storage_leaks(domain)
         )
 
-        # 2. Evaluación de Postura y Scoring
-        posture = evaluate_security_posture(dns_res, web_res, port_res)
+        kev_res = await scan_kev_epss_prioritization(domain, open_ports_data=port_res, web_data=web_res)
+
+        # 2. Evaluación de Postura y Scoring Determinista
+        posture = evaluate_security_posture(
+            dns_res, web_res, port_res,
+            identity_data=identity_res,
+            typosquatting_data=typo_res,
+            shadow_dns_data=shadow_res,
+            kev_epss_data=kev_res,
+            cloud_leak_data=cloud_res
+        )
+
+        telemetria = {
+            "dns": dns_res,
+            "web": web_res,
+            "puertos": port_res,
+            "identidad": identity_res,
+            "typosquatting": typo_res,
+            "shadow_dns": shadow_res,
+            "kev_epss": kev_res,
+            "cloud_leaks": cloud_res
+        }
 
         pipeline_payload = {
             "target": domain,
             "postura": posture,
-            "dns_email": dns_res,
-            "web_ssl": web_res,
-            "puertos": port_res
+            "telemetria": telemetria
         }
 
-        # 3. Síntesis Cognitiva con Gemini
+        # 3. Síntesis Cognitiva Multirrol con Gemini
         reporte_ia = generate_executive_analysis(pipeline_payload)
 
         return {
             "target": domain,
             "postura": posture,
             "analisis_cognitivo": reporte_ia,
-            "telemetria_tecnica": {
-                "dns": dns_res,
-                "web": web_res,
-                "puertos": port_res
-            }
+            "telemetria_tecnica": telemetria
         }
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error durante el escaneo: {str(e)}")
+
 
 if __name__ == "__main__":
     import uvicorn
