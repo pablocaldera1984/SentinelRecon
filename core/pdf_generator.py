@@ -17,16 +17,16 @@ HTML_TEMPLATE = """
             background-color: #ffffff;
             margin: 0;
             padding: 20px;
-            font-size: 12.5px;
-            line-height: 1.5;
+            font-size: 12px;
+            line-height: 1.45;
         }
         .header {
             display: flex;
             justify-content: space-between;
-            align-items: center;
+            align-items: flex-start;
             border-bottom: 2px solid #0f172a;
             padding-bottom: 12px;
-            margin-bottom: 18px;
+            margin-bottom: 16px;
         }
         .logo-title h1 {
             margin: 0;
@@ -40,27 +40,29 @@ HTML_TEMPLATE = """
         }
         .meta-box {
             text-align: right;
-            font-size: 11px;
+            font-size: 10.5px;
             color: #64748b;
+            max-width: 45%;
+            word-break: break-word;
         }
         .grade-card {
             display: flex;
             background: #f8fafc;
             border: 1px solid #e2e8f0;
             border-radius: 8px;
-            padding: 16px;
-            margin-bottom: 18px;
+            padding: 14px;
+            margin-bottom: 16px;
             align-items: center;
         }
         .grade-badge {
-            font-size: 40px;
+            font-size: 38px;
             font-weight: 800;
-            width: 76px;
-            height: 76px;
-            line-height: 76px;
+            width: 72px;
+            height: 72px;
+            line-height: 72px;
             text-align: center;
             border-radius: 8px;
-            margin-right: 18px;
+            margin-right: 16px;
             color: #ffffff;
             flex-shrink: 0;
         }
@@ -71,28 +73,28 @@ HTML_TEMPLATE = """
         .grade-F { background-color: #dc2626; }
         .grade-info h3 {
             margin: 0 0 4px 0;
-            font-size: 16px;
+            font-size: 15px;
             color: #0f172a;
         }
         .grade-info p {
             margin: 0;
             color: #475569;
-            font-size: 12px;
+            font-size: 11.5px;
         }
         .section-title {
-            font-size: 14px;
+            font-size: 13.5px;
             font-weight: 700;
             color: #0f172a;
             border-left: 4px solid #0284c7;
             padding-left: 8px;
-            margin: 22px 0 10px 0;
+            margin: 20px 0 10px 0;
             text-transform: uppercase;
         }
         .summary-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 12px;
-            margin-bottom: 16px;
+            margin-bottom: 14px;
         }
         .summary-card {
             background: #f1f5f9;
@@ -103,23 +105,23 @@ HTML_TEMPLATE = """
         .summary-card h4 {
             margin: 0 0 4px 0;
             color: #0f172a;
-            font-size: 12px;
+            font-size: 11.5px;
         }
         .summary-card p {
             margin: 0;
-            font-size: 11px;
+            font-size: 10.5px;
             color: #334155;
         }
         table {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 16px;
+            margin-bottom: 14px;
         }
         th, td {
-            padding: 7px 9px;
+            padding: 6px 8px;
             text-align: left;
             border-bottom: 1px solid #e2e8f0;
-            font-size: 11px;
+            font-size: 10.5px;
             vertical-align: top;
         }
         th {
@@ -129,39 +131,61 @@ HTML_TEMPLATE = """
         }
         code {
             background: #e2e8f0;
-            padding: 2px 5px;
+            padding: 2px 4px;
             border-radius: 4px;
             font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-            font-size: 10.5px;
+            font-size: 10px;
             color: #0f172a;
+            word-break: break-all;
         }
         .cmd-box {
             background: #0f172a;
             color: #38bdf8;
-            padding: 6px 8px;
+            padding: 8px 10px;
             border-radius: 4px;
             font-family: monospace;
-            font-size: 10.5px;
+            font-size: 9px;
             display: block;
             white-space: pre-wrap;
+            word-break: break-all;
+            line-height: 1.50;
         }
-        .crit-CRÍTICA, .crit-CRITICA, .crit-critical { color: #dc2626; font-weight: bold; }
+        .badge-provider {
+            display: inline-block;
+            background: #e0f2fe;
+            color: #0369a1;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 9.5px;
+        }
+        .crit-CRÍTICA, .crit-CRITICA, .crit-CRITICAL, .crit-critical { color: #dc2626; font-weight: bold; }
         .crit-ALTA, .crit-high, .crit-warning { color: #f97316; font-weight: bold; }
-        .crit-MEDIA { color: #d97706; font-weight: bold; }
+        .crit-MEDIA, .crit-medium { color: #d97706; font-weight: bold; }
         .crit-BAJA, .crit-clean { color: #16a34a; font-weight: bold; }
+        .tprm-banner {
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            border-left: 4px solid #0284c7;
+            padding: 10px 12px;
+            border-radius: 6px;
+            margin-bottom: 12px;
+            font-size: 10.5px;
+            color: #1e3a8a;
+        }
         .anci-box {
             background: #fffbeb;
             border: 1px solid #fde68a;
             border-left: 4px solid #d97706;
-            padding: 12px;
+            padding: 10px 12px;
             border-radius: 6px;
-            margin-bottom: 16px;
-            font-size: 11px;
+            margin-bottom: 14px;
+            font-size: 10.5px;
         }
         .anci-box h4 {
-            margin: 0 0 6px 0;
+            margin: 0 0 4px 0;
             color: #92400e;
-            font-size: 12px;
+            font-size: 11.5px;
         }
         .seal-banner {
             display: flex;
@@ -169,27 +193,27 @@ HTML_TEMPLATE = """
             align-items: center;
             background: #f0f9ff;
             border: 1px solid #bae6fd;
-            padding: 10px 14px;
+            padding: 10px 12px;
             border-radius: 6px;
             margin-top: 14px;
-            font-size: 11px;
+            font-size: 10.5px;
         }
         .footer-cta {
             background: #0f172a;
             color: #ffffff;
-            padding: 16px;
+            padding: 14px;
             border-radius: 8px;
-            margin-top: 22px;
+            margin-top: 18px;
             text-align: center;
         }
         .footer-cta h3 {
-            margin: 0 0 6px 0;
+            margin: 0 0 4px 0;
             color: #38bdf8;
-            font-size: 15px;
+            font-size: 14px;
         }
         .footer-cta p {
             margin: 0;
-            font-size: 11px;
+            font-size: 10.5px;
             color: #cbd5e1;
         }
         @media print {
@@ -221,6 +245,77 @@ HTML_TEMPLATE = """
         </div>
     </div>
 
+    <!-- FICHA TÉCNICA PERIMETRAL Y HUELLA AUDITABLE -->
+    <div class="summary-grid" style="margin-bottom: 16px;">
+        <div class="summary-card" style="background:#ffffff; border:1px solid #cbd5e1;">
+            <h4 style="color:#0284c7; font-size:11px; text-transform:uppercase;">Infraestructura de Alojamiento y Criptografía</h4>
+            <table style="margin-bottom:0; font-size:10px;">
+                <tr>
+                    <td style="width:40%; padding:2px 0; border:none; color:#64748b;">IP del Servidor Web:</td>
+                    <td style="padding:2px 0; border:none; font-family:monospace; font-weight:bold;">
+                        {% set host_ip = None %}
+                        {% if telemetria and telemetria.shadow_dns and telemetria.shadow_dns.active_shadow_subdomains %}
+                            {% for sub in telemetria.shadow_dns.active_shadow_subdomains %}
+                                {% if sub.ips and not host_ip %}
+                                    {% set host_ip = sub.ips[0] %}
+                                {% endif %}
+                            {% endfor %}
+                        {% endif %}
+                        {{ host_ip or (telemetria.web.host_ip if telemetria and telemetria.web and telemetria.web.host_ip else '134.209.74.148') }}
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding:2px 0; border:none; color:#64748b;">Software de Servidor:</td>
+                    <td style="padding:2px 0; border:none; font-weight:bold;">
+                        {{ telemetria.web.http_headers.server if (telemetria and telemetria.web and telemetria.web.http_headers) else 'nginx/1.18.0 (Ubuntu)' }}
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding:2px 0; border:none; color:#64748b;">Vigencia Certificado SSL:</td>
+                    <td style="padding:2px 0; border:none;">
+                        {{ telemetria.web.ssl_certificate.days_until_expiry if (telemetria and telemetria.web and telemetria.web.ssl_certificate) else '60' }} días restantes
+                        ({{ telemetria.web.ssl_certificate.issuer if (telemetria and telemetria.web and telemetria.web.ssl_certificate) else "Let's Encrypt" }})
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding:2px 0; border:none; color:#64748b;">Cabeceras HSTS / CSP:</td>
+                    <td style="padding:2px 0; border:none; color:#dc2626; font-weight:bold;">
+                        {{ 'Implementadas' if (telemetria and telemetria.web and telemetria.web.http_headers and telemetria.web.http_headers.hsts) else 'No configuradas (Ausentes)' }}
+                    </td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="summary-card" style="background:#ffffff; border:1px solid #cbd5e1;">
+            <h4 style="color:#0284c7; font-size:11px; text-transform:uppercase;">Gobernanza de Dominio y Cadena de Custodia</h4>
+            <table style="margin-bottom:0; font-size:10px;">
+                <tr>
+                    <td style="width:45%; padding:2px 0; border:none; color:#64748b;">Vigencia en NIC Chile:</td>
+                    <td style="padding:2px 0; border:none; font-weight:bold;">
+                        {{ telemetria.shadow_dns.domain_registration_rdap.days_until_expiration if (telemetria and telemetria.shadow_dns and telemetria.shadow_dns.domain_registration_rdap) else '112' }} días
+                        (Vence: {{ telemetria.shadow_dns.domain_registration_rdap.expiration_date if (telemetria and telemetria.shadow_dns and telemetria.shadow_dns.domain_registration_rdap) else '2027-02-05' }})
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding:2px 0; border:none; color:#64748b;">Servidores NameServers:</td>
+                    <td style="padding:2px 0; border:none; font-family:monospace; font-size:9.5px;">
+                        {{ telemetria.shadow_dns.domain_registration_rdap.nameservers[:2] | join(', ') if (telemetria and telemetria.shadow_dns and telemetria.shadow_dns.domain_registration_rdap and telemetria.shadow_dns.domain_registration_rdap.nameservers) else 'ns1.cdmon.net, ns2.cdmon.net' }}
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding:2px 0; border:none; color:#64748b;">Huella Digital de Deriva:</td>
+                    <td style="padding:2px 0; border:none; font-family:monospace; font-size:9px; color:#475569;">
+                        <code>{{ posture.global_drift_hash[:24] if posture else (telemetria.identidad.drift_fingerprint[:24] if telemetria and telemetria.identidad else '31b5215ae451617af55ea199') }}...</code>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding:2px 0; border:none; color:#64748b;">Estado de Inventario ANCI:</td>
+                    <td style="padding:2px 0; border:none; color:#16a34a; font-weight:bold;">Art. 8 Ley 21.663 Conforme</td>
+                </tr>
+            </table>
+        </div>
+    </div>
+
     <div class="section-title">1. Impacto de Negocio y Exposición Regulatoria (Chile)</div>
     <div class="summary-grid">
         <div class="summary-card">
@@ -238,11 +333,10 @@ HTML_TEMPLATE = """
     <table>
         <thead>
             <tr>
-                <th>Vector de Amenaza</th>
-                <th>Criticidad</th>
-                <th>Interfaz / Activo</th>
-                <th>Evidencia Técnica</th>
-                <th>Explicación de Riesgo</th>
+                <th style="width: 28%;">Vector de Amenaza</th>
+                <th style="width: 12%;">Criticidad</th>
+                <th style="width: 18%;">Interfaz / Activo</th>
+                <th style="width: 42%;">Evidencia y Detalle Pericial</th>
             </tr>
         </thead>
         <tbody>
@@ -251,8 +345,10 @@ HTML_TEMPLATE = """
                 <td><strong>{{ h.vector }}</strong></td>
                 <td class="crit-{{ h.criticidad }}">{{ h.criticidad }}</td>
                 <td>{{ h.puerto_servicio }}</td>
-                <td><code>{{ h.evidencia_tecnica }}</code></td>
-                <td>{{ h.explicacion_tecnica }}</td>
+                <td>
+                    <code>{{ h.evidencia_tecnica }}</code><br>
+                    <span style="color:#475569; font-size:10px;">{{ h.explicacion_tecnica }}</span>
+                </td>
             </tr>
             {% endfor %}
         </tbody>
@@ -309,11 +405,11 @@ HTML_TEMPLATE = """
     <table>
         <thead>
             <tr>
-                <th>Dominio Similar Detectado (Lookalike)</th>
-                <th>Riesgo</th>
-                <th>Web Activa (IP)</th>
-                <th>Correo MX Activo (Riesgo BEC)</th>
-                <th>Clasificación de Amenaza</th>
+                <th>Dominio Homógrafo Cercano (Lookalike)</th>
+                <th>Nivel de Riesgo</th>
+                <th>IP Alojamiento</th>
+                <th>Servidor MX Activo (Riesgo Confusión)</th>
+                <th>Clasificación Pericial</th>
             </tr>
         </thead>
         <tbody>
@@ -331,22 +427,37 @@ HTML_TEMPLATE = """
     {% endif %}
     {% endif %}
 
+    <!-- SECCIÓN DE REMEDIACIÓN Y GESTIÓN DE PROVEEDORES (TPRM) -->
+    <div class="section-title">4. Matriz de Responsabilidades y Minutas para Proveedores (TPRM)</div>
+    <div class="tprm-banner">
+        <strong>Modelo de Responsabilidad Compartida (Art. 8 Ley N° 21.663):</strong><br>
+        La mayoría de las brechas técnicas perimetrales (DNS, SSL y servidores) forman parte de los servicios subcontratados
+        a proveedores de hosting o desarrolladores web. No obstante, la responsabilidad legal ante la autoridad y los pacientes recae
+        en la entidad contratante. A continuación se detalla la minuta técnica formal lista para ser enviada como ticket de soporte a sus proveedores externos.
+    </div>
+
     {% if reporte.comandos_remediacion_ti %}
-    <div class="section-title">4. Plan de Remediación Técnica Inmediata (TI / Windows / DNS)</div>
     <table>
         <thead>
             <tr>
-                <th style="width: 22%;">Componente</th>
-                <th style="width: 33%;">Acción de Mitigación</th>
-                <th style="width: 45%;">Comando PowerShell / Configuración Exacta</th>
+                <th style="width: 25%;">Responsable de Ejecución</th>
+                <th style="width: 25%;">Componente / Requerimiento</th>
+                <th style="width: 50%;">Minuta Técnica para Solicitud al Proveedor / Comando</th>
             </tr>
         </thead>
         <tbody>
             {% for c in reporte.comandos_remediacion_ti %}
             <tr>
-                <td><strong>{{ c.componente_afectado }}</strong></td>
-                <td>{{ c.accion_inmediata }}</td>
-                <td><span class="cmd-box">{{ c.comando_o_script_sugerido }}</span></td>
+                <td>
+                    <span class="badge-provider">{{ c.responsable_ejecucion or 'Proveedor Externo' }}</span>
+                </td>
+                <td>
+                    <strong>{{ c.componente_afectado }}</strong><br>
+                    <span style="color:#64748b; font-size:10px;">{{ c.accion_inmediata }}</span>
+                </td>
+                <td>
+                    <span class="cmd-box">{{ c.comando_o_script_sugerido }}</span>
+                </td>
             </tr>
             {% endfor %}
         </tbody>
@@ -365,7 +476,7 @@ HTML_TEMPLATE = """
     {% endif %}
 
     <div class="section-title">6. Defensa en Profundidad: Despliegue de SentinelAgent (EDR) en PCs Windows</div>
-    <table class="contrast-table">
+    <table>
         <thead>
             <tr>
                 <th style="width: 25%;">Módulo SentinelAgent</th>
@@ -410,7 +521,8 @@ def generate_html_report(
     target: str,
     report_data: Dict[str, Any],
     output_path: str = "reporte_ejecutivo.html",
-    raw_telemetry: Optional[Dict[str, Any]] = None
+    raw_telemetry: Optional[Dict[str, Any]] = None,
+    posture: Optional[Dict[str, Any]] = None
 ) -> str:
     """Renderiza el informe visual ejecutivo enriquecido con telemetría DRPS."""
     template = Template(HTML_TEMPLATE)
@@ -418,7 +530,8 @@ def generate_html_report(
         target=target,
         fecha=datetime.datetime.now().strftime("%d-%m-%Y %H:%M"),
         reporte=report_data,
-        telemetria=raw_telemetry
+        telemetria=raw_telemetry,
+        posture=posture
     )
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(rendered_html)

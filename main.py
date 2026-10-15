@@ -80,7 +80,13 @@ async def run_sentinel_recon(target_domain: str):
     # 4. Generación del Reporte Ejecutivo HTML/PDF
     print("[4/4] Renderizando Súper Reporte Corporativo HTML...")
     output_filename = f"reporte_{target_domain.replace('.', '_')}.html"
-    generate_html_report(target_domain, reporte_ia, output_filename, raw_telemetry=telemetria_consolidada)
+    generate_html_report(
+        target_domain, 
+        reporte_ia, 
+        output_filename, 
+        raw_telemetry=telemetria_consolidada,
+        posture=posture
+    )
 
     print("\n" + "=" * 72)
     print(f"[+] AUDITORÍA COMPLETADA CON ÉXITO")

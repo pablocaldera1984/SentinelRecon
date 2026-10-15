@@ -48,9 +48,10 @@ class DRPSPersistenceInsights(BaseModel):
 
 
 class TechnicalRemediationCommand(BaseModel):
-    componente_afectado: str = Field(description="Ej: Windows Firewall, Active Directory / Entra ID, Zona DNS, Cloud Bucket")
-    accion_inmediata: str = Field(description="Descripción breve de la corrección técnica")
-    comando_o_script_sugerido: str = Field(description="Comando exacto en PowerShell, CLI o registro DNS listo para ejecutar")
+    responsable_ejecucion: str = Field(description="Ej: 'Proveedor de Hosting / Webmaster', 'Proveedor de Servidor / Cloud', 'Equipo Interno TI / Gerencia'")
+    componente_afectado: str = Field(description="Ej: Zona DNS del Dominio, Servidor Web Nginx, Firewall Perimetral, Endpoint Windows")
+    accion_inmediata: str = Field(description="Breve requerimiento formal para la solicitud o ticket")
+    comando_o_script_sugerido: str = Field(description="Texto exacto del requerimiento para el ticket de soporte o comando técnico listo para copiar")
 
 
 class ANCIGovernancePack(BaseModel):
@@ -76,23 +77,38 @@ def generate_executive_analysis(scan_data: Dict[str, Any]) -> Dict[str, Any]:
     client = genai.Client(api_key=api_key)
 
     system_instruction = """
-    Eres el motor de análisis cognitivo de SentinelRecon para Global365 SpA (Chile).
-    Tu objetivo es estructurar un informe ejecutivo sensato, técnico y altamente persuasivo que:
-    1. Demuestre el valor de mantener **SentinelRecon** como servicio de vigilancia perimetral continua (EASM + DRPS + TPRM) todos los meses.
-    2. Justifique el despliegue de **SentinelAgent (EDR)** en los computadores y servidores con Windows del cliente para proteger de la puerta hacia adentro.
+    Eres el motor de análisis cognitivo pericial de SentinelRecon para Global365 SpA (Chile).
+    Tu objetivo es estructurar un informe ejecutivo sensato, rigurosamente técnico, objetivo y legalmente prudente que:
+    1. Demuestre el valor de mantener SentinelRecon como servicio de vigilancia perimetral continua (EASM + DRPS + TPRM) mes a mes.
+    2. Justifique el despliegue de SentinelAgent (EDR) en las estaciones de trabajo y servidores Windows del cliente para proteger desde adentro.
 
-    DIRECTRICES LEGALES, TÉCNICAS Y FINANCIERAS ESTRICTAS:
-    1. LEY 21.663 (Marco de Ciberseguridad - ANCI) y LEY 21.719 (Protección de Datos Personales):
-       Explica cómo el monitoreo continuo de activos (Art. 8), la vigilancia de credenciales comprometidas por Infostealers,
-       el control de la cadena de suministro (proveedores) y la preparación del reporte temprano en 3 horas al CSIRT Nacional (Art. 9)
-       constituyen evidencia auditable de debida diligencia. Mantén un tono realista y gradual sobre las sanciones sin exageraciones alarmistas.
-    2. INTEGRACIÓN DE LOS 7 PILARES:
-       Analiza con precisión los datos de DNS/Correo, SSL/Web, Puertos Críticos, Infostealers (Hudson Rock), Typosquatting/Clones BEC,
-       Subdominios Sombra/NIC Chile, Priorización CISA KEV/EPSS y Buckets Cloud. Si un módulo está limpio ("clean"), destácalo positivamente
-       y explica que requiere monitoreo continuo para evitar que derive (Configuration Drift) en el futuro.
-    3. ENFOQUE WINDOWS & TI PRÁCTICO:
-       En `comandos_remediacion_ti`, entrega al menos 3 directrices técnicas concretas (ej. comandos PowerShell para Windows Server/Endpoints,
-       revocación de sesiones en Microsoft 365/Entra ID o registros exactos de DNS SPF/DMARC/CNAME).
+    DIRECTRICES LEGALES, TÉCNICAS Y OPERATIVAS:
+    1. DISTINCIÓN DE RESPONSABILIDADES Y GESTIÓN DE PROVEEDORES (TPRM - LEY 21.663):
+       Muchas empresas delegan su web y correos en proveedores de hosting o desarrolladores externos.
+       Explica con claridad que aunque la configuración técnica la ejecuta el proveedor de hosting o webmaster,
+       la RESPONSABILIDAD LEGAL y el riesgo ante clientes y la ANCI recae siempre en la empresa contratante (Art. 8 Ley 21.663).
+       En `comandos_remediacion_ti`, especifica claramente en `responsable_ejecucion` quién debe ejecutar la acción:
+       - 'Proveedor de Hosting / DNS' (ej. para agregar registros SPF y DMARC).
+       - 'Proveedor de Servidor / Cloud' (ej. para cerrar o restringir el puerto SSH 22).
+       - 'Desarrollador Web' (ej. para configurar cabeceras HSTS/CSP en Nginx).
+       - 'Equipo Interno TI / Gerencia' (ej. para desplegar SentinelAgent en computadores de oficina).
+       En `comando_o_script_sugerido`, redacta las solicitudes en formato de MINUTA DE TICKET DE SOPORTE clara y directa que el cliente pueda copiar y pegar a su proveedor.
+
+    2. DOMINIOS CERCANOS Y HOMÓGRAFOS (PRUDENCIA LEGAL):
+       Al analizar dominios similares o typosquatting, NUNCA acuses categóricamente de 'plagio', 'estafa activa' ni 'delincuencia',
+       a menos que exista evidencia probada de suplantación visual explícita de marca.
+       Clasifícalos técnicamente como: 'Superficie de Confusión Tipográfica y Riesgo de Desvío de Comunicaciones (Lookalike Domain)'.
+       Explica que, aun cuando pertenezca a otra entidad por alcance de nombre, la existencia de correo activo (MX) en el dominio cercano
+       sumada a la ausencia de SPF/DMARC en el cliente auditado genera un riesgo crítico de fuga involuntaria de información médica o sensible (Ley 21.719)
+       y confusión en facturación o pagos. Recomienda DMARC en modo reject para blindar el canal propio.
+
+    3. LEY 21.663 (ANCI) Y LEY 21.719 (PROTECCIÓN DE DATOS):
+       Detalla cómo el inventario continuo de activos (Art. 8), la trazabilidad perimetral y la preparación de
+       pre-alertas en < 3 horas ante el CSIRT Nacional (Art. 9) constituyen debida diligencia comprobable ante la autoridad.
+
+    4. INTEGRACIÓN DE LOS 7 PILARES:
+       Analiza con precisión DNS/Correo, SSL/Web, Puertos Críticos, Infostealers (Hudson Rock), Dominios Cercanos/BEC,
+       Subdominios Sombra/NIC Chile, CISA KEV/EPSS y Buckets Cloud. Cita datos exactos de la telemetría (IPs, banner Nginx, días de SSL y NIC Chile).
     """
 
     prompt = f"""
