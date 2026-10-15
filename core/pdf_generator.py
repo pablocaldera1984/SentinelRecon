@@ -248,10 +248,10 @@ HTML_TEMPLATE = """
     <!-- FICHA TÉCNICA PERIMETRAL Y HUELLA AUDITABLE -->
     <div class="summary-grid" style="margin-bottom: 16px;">
         <div class="summary-card" style="background:#ffffff; border:1px solid #cbd5e1;">
-            <h4 style="color:#0284c7; font-size:11px; text-transform:uppercase;">Infraestructura de Alojamiento y Criptografía</h4>
+            <h4 style="color:#0284c7; font-size:11px; text-transform:uppercase;">Infraestructura de Alojamiento y Criptografía Web</h4>
             <table style="margin-bottom:0; font-size:10px;">
                 <tr>
-                    <td style="width:40%; padding:2px 0; border:none; color:#64748b;">IP del Servidor Web:</td>
+                    <td style="width:40%; padding:2px 0; border:none; color:#64748b;">IP del Servidor Web (IPv4):</td>
                     <td style="padding:2px 0; border:none; font-family:monospace; font-weight:bold;">
                         {% set host_ip = None %}
                         {% if telemetria and telemetria.shadow_dns and telemetria.shadow_dns.active_shadow_subdomains %}
@@ -262,6 +262,16 @@ HTML_TEMPLATE = """
                             {% endfor %}
                         {% endif %}
                         {{ host_ip or (telemetria.web.host_ip if telemetria and telemetria.web and telemetria.web.host_ip else '134.209.74.148') }}
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding:2px 0; border:none; color:#64748b;">Interfaz IPv6 (AAAA):</td>
+                    <td style="padding:2px 0; border:none; font-family:monospace;">
+                        {% if telemetria and telemetria.dns and telemetria.dns.ipv6 and telemetria.dns.ipv6.has_ipv6 %}
+                            <span style="color:#0284c7; font-weight:bold;">{{ telemetria.dns.ipv6.addresses[0] }}</span>
+                        {% else %}
+                            <span style="color:#64748b;">No publicada / Protegida</span>
+                        {% endif %}
                     </td>
                 </tr>
                 <tr>
@@ -287,7 +297,7 @@ HTML_TEMPLATE = """
         </div>
 
         <div class="summary-card" style="background:#ffffff; border:1px solid #cbd5e1;">
-            <h4 style="color:#0284c7; font-size:11px; text-transform:uppercase;">Gobernanza de Dominio y Cadena de Custodia</h4>
+            <h4 style="color:#0284c7; font-size:11px; text-transform:uppercase;">Gobernanza DNS, NIC Chile & Cadena de Custodia</h4>
             <table style="margin-bottom:0; font-size:10px;">
                 <tr>
                     <td style="width:45%; padding:2px 0; border:none; color:#64748b;">Vigencia en NIC Chile:</td>
@@ -300,6 +310,16 @@ HTML_TEMPLATE = """
                     <td style="padding:2px 0; border:none; color:#64748b;">Servidores NameServers:</td>
                     <td style="padding:2px 0; border:none; font-family:monospace; font-size:9.5px;">
                         {{ telemetria.shadow_dns.domain_registration_rdap.nameservers[:2] | join(', ') if (telemetria and telemetria.shadow_dns and telemetria.shadow_dns.domain_registration_rdap and telemetria.shadow_dns.domain_registration_rdap.nameservers) else 'ns1.cdmon.net, ns2.cdmon.net' }}
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding:2px 0; border:none; color:#64748b;">Servicios DNS SRV Expuestos:</td>
+                    <td style="padding:2px 0; border:none; font-weight:bold;">
+                        {% if telemetria and telemetria.dns and telemetria.dns.srv and telemetria.dns.srv.detected_count > 0 %}
+                            <span style="color:#dc2626;">{{ telemetria.dns.srv.detected_count }} detectados (Revisar puertos)</span>
+                        {% else %}
+                            <span style="color:#16a34a;">0 expuestos (LDAP/SIP/Exchange seguros)</span>
+                        {% endif %}
                     </td>
                 </tr>
                 <tr>
@@ -420,6 +440,33 @@ HTML_TEMPLATE = """
                 <td>{{ d.resolved_ips | join(', ') if d.resolved_ips else 'No' }}</td>
                 <td><code>{{ d.mx_servers | join(', ') if d.mx_servers else 'Sin MX' }}</code></td>
                 <td>{{ d.threat_type }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
+    <!-- TABLA DE SERVICIOS CORPORATIVOS DNS SRV DETECTADOS -->
+    {% if telemetria and telemetria.dns and telemetria.dns.srv and telemetria.dns.srv.records %}
+    <div style="margin-top: 10px; margin-bottom: 6px; font-weight: bold; font-size: 11px; color: #0f172a;">
+        Servicios Corporativos Detectados vía Registros DNS SRV:
+    </div>
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 35%;">Servicio Publicado</th>
+                <th style="width: 30%;">Consulta DNS SRV</th>
+                <th style="width: 25%;">Host Destino</th>
+                <th style="width: 10%;">Puerto</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for srv in telemetria.dns.srv.records %}
+            <tr>
+                <td><strong>{{ srv.service }}</strong></td>
+                <td><code>{{ srv.query }}</code></td>
+                <td>{{ srv.target_host }}</td>
+                <td><span style="font-weight:bold; color:#dc2626;">{{ srv.port }}</span></td>
             </tr>
             {% endfor %}
         </tbody>

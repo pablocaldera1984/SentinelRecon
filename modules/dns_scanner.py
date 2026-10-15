@@ -1,3 +1,4 @@
+# modules/dns_scanner.py
 import asyncio
 import dns.resolver
 import dns.asyncresolver
@@ -101,17 +102,76 @@ async def check_dkim_selector(domain: str, selector: str, resolver: dns.asyncres
     return {"selector": selector, "found": False}
 
 
+async def check_aaaa(domain: str, resolver: dns.asyncresolver.Resolver) -> Dict[str, Any]:
+    """Consulta explícita de registros IPv6 (AAAA)."""
+    ipv6_list = []
+    try:
+        answers = await resolver.resolve(domain, 'AAAA')
+        ipv6_list = [r.to_text().strip() for r in answers]
+    except Exception:
+        ipv6_list = []
+    
+    return {
+        "has_ipv6": len(ipv6_list) > 0,
+        "addresses": ipv6_list
+    }
+
+
+async def check_single_srv(prefix: str, service_name: str, domain: str, resolver: dns.asyncresolver.Resolver) -> List[Dict[str, Any]]:
+    """Consulta un registro SRV individual."""
+    target = f"{prefix}.{domain}"
+    found = []
+    try:
+        answers = await resolver.resolve(target, 'SRV')
+        for r in answers:
+            found.append({
+                "service": service_name,
+                "query": target,
+                "target_host": str(r.target).rstrip('.'),
+                "port": r.port,
+                "priority": r.priority,
+                "weight": r.weight
+            })
+    except Exception:
+        pass
+    return found
+
+
+async def check_srv_records(domain: str, resolver: dns.asyncresolver.Resolver) -> Dict[str, Any]:
+    """Sondeo de registros de servicio SRV clave (Active Directory, Exchange/M365, Telefonía SIP)."""
+    srv_probes = [
+        ("_autodiscover._tcp", "Microsoft Exchange / M365 Autodiscover"),
+        ("_sip._tls", "Telefonía SIP / Comunicaciones Unificadas"),
+        ("_ldap._tcp", "Active Directory LDAP Expuesto"),
+        ("_kerberos._tcp", "Controlador de Dominio Kerberos")
+    ]
+    
+    tasks = [check_single_srv(prefix, name, domain, resolver) for prefix, name in srv_probes]
+    results = await asyncio.gather(*tasks)
+    
+    detected = [srv for sublist in results for srv in sublist]
+    
+    return {
+        "probes_count": len(srv_probes),
+        "detected_count": len(detected),
+        "records": detected
+    }
+
+
 async def scan_dns_email(domain: str) -> Dict[str, Any]:
     resolver = dns.asyncresolver.Resolver()
     resolver.timeout = DNS_TIMEOUT
     resolver.lifetime = DNS_TIMEOUT
     
+    # Lanzar todas las sondas concurrentemente
     spf_task = check_spf(domain, resolver)
     dmarc_task = check_dmarc(domain, resolver)
+    aaaa_task = check_aaaa(domain, resolver)
+    srv_task = check_srv_records(domain, resolver)
     dkim_tasks = [check_dkim_selector(domain, sel, resolver) for sel in DKIM_SELECTORS]
     
-    spf_res, dmarc_res, *dkim_results = await asyncio.gather(
-        spf_task, dmarc_task, *dkim_tasks
+    spf_res, dmarc_res, aaaa_res, srv_res, *dkim_results = await asyncio.gather(
+        spf_task, dmarc_task, aaaa_task, srv_task, *dkim_tasks
     )
     
     active_dkim = [res for res in dkim_results if res.get("found")]
@@ -124,5 +184,7 @@ async def scan_dns_email(domain: str) -> Dict[str, Any]:
             "selectors_tested": len(DKIM_SELECTORS),
             "selectors_found": active_dkim,
             "has_dkim": len(active_dkim) > 0
-        }
+        },
+        "ipv6": aaaa_res,
+        "srv": srv_res
     }
