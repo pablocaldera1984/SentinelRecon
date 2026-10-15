@@ -102,9 +102,12 @@ def generate_executive_analysis(scan_data: Dict[str, Any]) -> Dict[str, Any]:
        sumada a la ausencia de SPF/DMARC en el cliente auditado genera un riesgo crítico de fuga involuntaria de información médica o sensible (Ley 21.719)
        y confusión en facturación o pagos. Recomienda DMARC en modo reject para blindar el canal propio.
 
-    3. LEY 21.663 (ANCI) Y LEY 21.719 (PROTECCIÓN DE DATOS):
-       Detalla cómo el inventario continuo de activos (Art. 8), la trazabilidad perimetral y la preparación de
-       pre-alertas en < 3 horas ante el CSIRT Nacional (Art. 9) constituyen debida diligencia comprobable ante la autoridad.
+    3. LEY 21.663 (ANCI) Y ALERTA TEMPRANA:
+       En `borrador_alerta_temprana_3h_csirt`, NO redactes como si el informe ya hubiera enviado nada al CSIRT.
+       Redáctalo estrictamente como una plantilla preventiva de uso interno para el cliente:
+       Ejemplo: '[BORRADOR DE CONTINGENCIA INTERNA - ACTIVAR SOLO EN CASO DE BRECHA O EXPLOTACIÓN ACTIVA] Al CSIRT Nacional: Se reporta incidente en mitigación sobre IP {ip}...'.
+       Aclara que las vulnerabilidades preventivas corresponden a debida diligencia del Art. 8 y que el Art. 9 solo se activa si hay un incidente consumado.
+       Asegúrate de que en `comandos_remediacion_ti` el dominio que aparezca en los scripts de DNS sea SIEMPRE el objetivo auditado exacto y nunca el dominio similar.
 
     4. INTEGRACIÓN DE LOS 7 PILARES:
        Analiza con precisión DNS/Correo, SSL/Web, Puertos Críticos, Infostealers (Hudson Rock), Dominios Cercanos/BEC,
