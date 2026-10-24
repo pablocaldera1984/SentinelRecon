@@ -1,5 +1,7 @@
 # modules/dns_scanner.py
 import asyncio
+import socket
+import httpx
 import dns.resolver
 import dns.asyncresolver
 from typing import Dict, Any, List
@@ -158,6 +160,109 @@ async def check_srv_records(domain: str, resolver: dns.asyncresolver.Resolver) -
     }
 
 
+async def check_advanced_dns_governance(domain: str, resolver: dns.asyncresolver.Resolver) -> Dict[str, Any]:
+    """Audita CAA (Control de Emisión SSL), MTA-STS, TLS-RPT, BIMI y firma DNSSEC."""
+    gov = {
+        "caa_configured": False,
+        "caa_records": [],
+        "mta_sts_configured": False,
+        "tls_rpt_configured": False,
+        "bimi_configured": False,
+        "dnssec_enabled": False
+    }
+
+    # 1. CAA
+    try:
+        caa_ans = await resolver.resolve(domain, 'CAA')
+        gov["caa_records"] = [r.to_text() for r in caa_ans]
+        gov["caa_configured"] = len(gov["caa_records"]) > 0
+    except Exception:
+        pass
+
+    # 2. MTA-STS (_mta-sts.domain)
+    try:
+        sts_ans = await resolver.resolve(f"_mta-sts.{domain}", 'TXT')
+        for r in sts_ans:
+            txt = "".join([p.decode('utf-8', errors='ignore') for p in r.strings])
+            if "v=STSv1" in txt:
+                gov["mta_sts_configured"] = True
+    except Exception:
+        pass
+
+    # 3. SMTP TLS Reporting (_smtp._tls.domain)
+    try:
+        tlsrpt_ans = await resolver.resolve(f"_smtp._tls.{domain}", 'TXT')
+        for r in tlsrpt_ans:
+            txt = "".join([p.decode('utf-8', errors='ignore') for p in r.strings])
+            if "v=TLSRPTv1" in txt:
+                gov["tls_rpt_configured"] = True
+    except Exception:
+        pass
+
+    # 4. BIMI (default._bimi.domain)
+    try:
+        bimi_ans = await resolver.resolve(f"default._bimi.{domain}", 'TXT')
+        for r in bimi_ans:
+            txt = "".join([p.decode('utf-8', errors='ignore') for p in r.strings])
+            if "v=BIMI1" in txt:
+                gov["bimi_configured"] = True
+    except Exception:
+        pass
+
+    # 5. DNSSEC (DNSKEY / DS)
+    try:
+        await resolver.resolve(domain, 'DNSKEY')
+        gov["dnssec_enabled"] = True
+    except Exception:
+        pass
+
+    return gov
+
+
+async def check_asn_and_data_sovereignty(domain: str, resolver: dns.asyncresolver.Resolver) -> Dict[str, Any]:
+    """Resuelve IP primaria y obtiene ASN, Proveedor BGP y Jurisdicción de Datos (Ley 21.719)."""
+    info = {
+        "primary_ip": None,
+        "asn": None,
+        "isp_org": None,
+        "country": None,
+        "country_code": None,
+        "hosted_in_chile": False,
+        "data_sovereignty_status": "DESCONOCIDO"
+    }
+    try:
+        a_ans = await resolver.resolve(domain, 'A')
+        ips = [r.to_text().strip() for r in a_ans]
+        if ips:
+            info["primary_ip"] = ips[0]
+    except Exception:
+        try:
+            info["primary_ip"] = socket.gethostbyname(domain)
+        except Exception:
+            pass
+
+    if info["primary_ip"]:
+        try:
+            async with httpx.AsyncClient(timeout=2.5) as client:
+                resp = await client.get(f"http://ip-api.com/json/{info['primary_ip']}?fields=status,country,countryCode,isp,org,as")
+                if resp.status_code == 200:
+                    data = resp.json()
+                    if data.get("status") == "success":
+                        info["asn"] = data.get("as")
+                        info["isp_org"] = data.get("org") or data.get("isp")
+                        info["country"] = data.get("country")
+                        info["country_code"] = data.get("countryCode")
+                        info["hosted_in_chile"] = data.get("countryCode") == "CL"
+                        info["data_sovereignty_status"] = (
+                            "ALOJAMIENTO LOCAL (CHILE)" if info["hosted_in_chile"]
+                            else f"FLUJO TRANSFRONTERIZO ({info['country']} - Auditar Art. Ley 21.719)"
+                        )
+        except Exception:
+            pass
+
+    return info
+
+
 async def scan_dns_email(domain: str) -> Dict[str, Any]:
     resolver = dns.asyncresolver.Resolver()
     resolver.timeout = DNS_TIMEOUT
@@ -168,10 +273,12 @@ async def scan_dns_email(domain: str) -> Dict[str, Any]:
     dmarc_task = check_dmarc(domain, resolver)
     aaaa_task = check_aaaa(domain, resolver)
     srv_task = check_srv_records(domain, resolver)
+    gov_task = check_advanced_dns_governance(domain, resolver)
+    asn_task = check_asn_and_data_sovereignty(domain, resolver)
     dkim_tasks = [check_dkim_selector(domain, sel, resolver) for sel in DKIM_SELECTORS]
     
-    spf_res, dmarc_res, aaaa_res, srv_res, *dkim_results = await asyncio.gather(
-        spf_task, dmarc_task, aaaa_task, srv_task, *dkim_tasks
+    spf_res, dmarc_res, aaaa_res, srv_res, gov_res, asn_res, *dkim_results = await asyncio.gather(
+        spf_task, dmarc_task, aaaa_task, srv_task, gov_task, asn_task, *dkim_tasks
     )
     
     active_dkim = [res for res in dkim_results if res.get("found")]
@@ -186,5 +293,7 @@ async def scan_dns_email(domain: str) -> Dict[str, Any]:
             "has_dkim": len(active_dkim) > 0
         },
         "ipv6": aaaa_res,
-        "srv": srv_res
+        "srv": srv_res,
+        "governance": gov_res,
+        "asn_sovereignty": asn_res
     }

@@ -8,16 +8,14 @@ from typing import Dict, Any, List
 
 BUCKET_SUFFIXES = [
     "", "-backup", "-backups", "-dev", "-prod", "-staging",
-    "-public", "-files", "-data", "-assets", "-media", "-docs"
+    "-public", "-files", "-data", "-assets", "-media", "-docs",
+    "-clientes", "-facturas", "-ai"
 ]
 
 SENSITIVE_EXTENSIONS = (".sql", ".bak", ".json", ".env", ".xlsx", ".csv", ".pdf", ".zip", ".key", ".pem")
 
 
 def _extract_brand_keyword(domain: str) -> str:
-    """
-    Extrae la palabra clave base de la organización a partir del dominio.
-    """
     clean = domain.strip().lower()
     parts = clean.split(".")
     return parts[0] if parts else clean
@@ -31,8 +29,7 @@ async def _probe_single_cloud_endpoint(
     sem: asyncio.Semaphore
 ) -> Dict[str, Any]:
     """
-    Realiza una verificación HTTP GET/HEAD no invasiva sobre el endpoint de almacenamiento cloud
-    para detectar si tiene permisos de listado público (AllUsers) habilitados.
+    Verifica de forma no invasiva contenedores AWS S3, GCP Storage, Azure Blob y Firebase Realtime DB.
     """
     async with sem:
         try:
@@ -40,9 +37,34 @@ async def _probe_single_cloud_endpoint(
             status_code = resp.status_code
             body_preview = resp.text[:4000] if status_code == 200 else ""
 
+            # Caso Especial: Firebase Realtime Database abierta (.json?shallow=true retorna JSON distinto de null)
+            if provider == "Google Firebase Realtime DB":
+                if status_code == 200 and body_preview.strip() not in ["null", "", "{}"]:
+                    return {
+                        "provider": provider,
+                        "bucket_name": bucket_name,
+                        "endpoint_url": url.split("?")[0],
+                        "access_state": "PUBLIC_OPEN_LISTABLE",
+                        "risk_level": "critical",
+                        "exposed_files_sample": ["Root JSON Nodes Exposed"],
+                        "sensitive_files_detected": ["realtime_db_root.json"],
+                        "remediation_cli": f"Configurar Firebase Security Rules (.read: false) en '{bucket_name}'"
+                    }
+                elif status_code in [401, 403]:
+                    return {
+                        "provider": provider,
+                        "bucket_name": bucket_name,
+                        "endpoint_url": url.split("?")[0],
+                        "access_state": "PROTECTED_PRIVATE",
+                        "risk_level": "info",
+                        "exposed_files_sample": [],
+                        "sensitive_files_detected": [],
+                        "remediation_cli": None
+                    }
+                return {}
+
             # Caso 1: Bucket Público y Listable (HTTP 200 con ListBucketResult XML) -> CRÍTICO
             if status_code == 200 and ("<ListBucketResult" in body_preview or "<EnumerationResults" in body_preview):
-                # Extraer hasta 10 nombres de archivos (Keys) de los metadatos XML sin descargar archivos
                 keys = re.findall(r"<Key>([^<]+)</Key>", body_preview)
                 if not keys:
                     keys = re.findall(r"<Name>([^<]+)</Name>", body_preview)
@@ -60,7 +82,7 @@ async def _probe_single_cloud_endpoint(
                     "remediation_cli": f"Bloquear ACL pública (BlockPublicAcls=True) en {provider} para '{bucket_name}'"
                 }
 
-            # Caso 2: Bucket Existe pero está Protegido (HTTP 403 AccessDenied) -> Activo Cloud Descubierto
+            # Caso 2: Bucket Existe pero está Protegido (HTTP 403 AccessDenied)
             elif status_code == 403:
                 return {
                     "provider": provider,
@@ -81,9 +103,7 @@ async def _probe_single_cloud_endpoint(
 
 async def scan_cloud_storage_leaks(domain: str, timeout: float = 3.5) -> Dict[str, Any]:
     """
-    Módulo 3: Sentinel Cloud Leak Hunter.
-    Audita pasivamente contenedores en AWS S3, Google Cloud Storage y Azure Blob
-    asociados a la marca para prevenir fugas de datos (Ley 21.663 y Ley 21.719).
+    Módulo 3: Sentinel Cloud & BaaS Leak Hunter (S3, GCP, Azure Blob, Firebase).
     """
     clean_domain = domain.strip().lower()
     brand = _extract_brand_keyword(clean_domain)
@@ -91,13 +111,15 @@ async def scan_cloud_storage_leaks(domain: str, timeout: float = 3.5) -> Dict[st
     probes = []
     for suffix in BUCKET_SUFFIXES:
         candidate = f"{brand}{suffix}"
-        # 1. Amazon AWS S3
         probes.append(("AWS S3", candidate, f"https://{candidate}.s3.amazonaws.com"))
-        # 2. Google Cloud Storage (GCP)
         probes.append(("Google Cloud Storage", candidate, f"https://storage.googleapis.com/{candidate}"))
-        # 3. Microsoft Azure Blob Storage (cuenta limpia sin guiones para URL base)
         azure_acc = candidate.replace("-", "")
         probes.append(("Azure Blob Storage", candidate, f"https://{azure_acc}.blob.core.windows.net/{candidate}?restype=container&comp=list"))
+
+    # Sondeo adicional de bases Firebase Realtime asociadas a la marca
+    for fb_suffix in ["", "-prod", "-default-rtdb", "-app"]:
+        fb_cand = f"{brand}{fb_suffix}"
+        probes.append(("Google Firebase Realtime DB", fb_cand, f"https://{fb_cand}.firebaseio.com/.json?shallow=true"))
 
     headers = {"User-Agent": "SentinelRecon-EASM/2.0 (Cloud-Posture-Audit)"}
     sem = asyncio.Semaphore(15)

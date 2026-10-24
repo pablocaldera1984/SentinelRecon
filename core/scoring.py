@@ -5,7 +5,7 @@ from typing import Dict, Any, Optional
 
 
 def calculate_email_penalty(dns_data: Dict[str, Any]) -> float:
-    """Calcula la penalización por higiene de correo y anti-spoofing (P_email: 0 a 100)."""
+    """Calcula la penalización por higiene de correo, anti-spoofing y gobernanza DNS (P_email: 0 a 100)."""
     penalty = 0.0
 
     # 1. SPF
@@ -36,11 +36,16 @@ def calculate_email_penalty(dns_data: Dict[str, Any]) -> float:
     if not dkim.get("has_dkim", False):
         penalty += 15.0
 
+    # 4. Gobernanza DNS Avanzada (CAA & MTA-STS)
+    gov = dns_data.get("governance", {})
+    if gov and not gov.get("caa_configured", False):
+        penalty += 5.0
+
     return min(100.0, penalty)
 
 
 def calculate_crypto_penalty(web_data: Dict[str, Any]) -> float:
-    """Calcula la penalización por postura SSL/TLS y encabezados HTTP (P_crypto: 0 a 100)."""
+    """Calcula la penalización por postura SSL/TLS, PQC, encabezados HTTP y exposición web (P_crypto: 0 a 100)."""
     penalty = 0.0
 
     ssl_cert = web_data.get("ssl_certificate", {})
@@ -52,6 +57,9 @@ def calculate_crypto_penalty(web_data: Dict[str, Any]) -> float:
     elif ssl_cert.get("days_until_expiry") is not None and ssl_cert.get("days_until_expiry") < 15:
         penalty += 25.0
 
+    if ssl_cert.get("deprecated_tls", False):
+        penalty += 35.0
+
     headers = web_data.get("http_headers", {})
     if not headers.get("hsts", False):
         penalty += 20.0
@@ -59,12 +67,20 @@ def calculate_crypto_penalty(web_data: Dict[str, Any]) -> float:
         penalty += 15.0
     if not headers.get("x_frame_options"):
         penalty += 10.0
+    if headers.get("cors_wildcard", False):
+        penalty += 10.0
+
+    exposure = web_data.get("exposure_audit", {})
+    if exposure.get("openapi_swagger_exposed", False):
+        penalty += 15.0
+    if exposure.get("sourcemaps_referenced", False):
+        penalty += 10.0
 
     return min(100.0, penalty)
 
 
 def calculate_ports_penalty(port_data: Dict[str, Any]) -> float:
-    """Calcula la penalización por exposición de interfaces de gestión crítica (P_puertos: 0 a 100)."""
+    """Calcula la penalización por exposición de interfaces de gestión, bases de datos y Shadow AI (P_puertos: 0 a 100)."""
     penalty = 0.0
     open_ports = [p.get("port") for p in port_data.get("open_ports", [])]
 
@@ -72,7 +88,13 @@ def calculate_ports_penalty(port_data: Dict[str, Any]) -> float:
         3389: 50.0,   # RDP expuesto (Windows)
         445: 50.0,    # SMB expuesto (Windows)
         135: 40.0,    # RPC expuesto (Windows)
-        11434: 40.0,  # Shadow AI (Ollama sin auth)
+        11434: 45.0,  # Shadow AI (Ollama sin auth)
+        6333: 40.0,   # Vector DB Qdrant (Shadow AI)
+        6379: 45.0,   # Redis expuesto
+        27017: 45.0,  # MongoDB expuesto
+        3306: 35.0,   # MySQL expuesto
+        5432: 35.0,   # PostgreSQL expuesto
+        21: 25.0,     # FTP texto plano
         22: 25.0,     # SSH expuesto
         8080: 15.0    # Proxy/Admin web alternativo
     }
@@ -92,7 +114,7 @@ def calculate_drps_extended_penalty(
     cloud_leak_data: Optional[Dict[str, Any]] = None
 ) -> Dict[str, float]:
     """
-    Calcula las penalizaciones deterministas de los 5 nuevos motores DRPS/EASM avanzados.
+    Calcula las penalizaciones deterministas de los 5 motores DRPS/EASM avanzados.
     """
     p_identity = 0.0
     p_brand = 0.0
@@ -113,7 +135,10 @@ def calculate_drps_extended_penalty(
     if typosquatting_data:
         mx_clones = typosquatting_data.get("mail_ready_clones_count", 0)
         web_clones = typosquatting_data.get("active_lookalikes_count", 0)
-        if mx_clones > 0:
+        visual_clones = typosquatting_data.get("visual_phishing_clones_count", 0)
+        if visual_clones > 0:
+            p_brand = 100.0
+        elif mx_clones > 0:
             p_brand = min(100.0, 35.0 + (mx_clones * 15.0))
         elif web_clones > 0:
             p_brand = min(60.0, web_clones * 15.0)
@@ -171,10 +196,8 @@ def evaluate_security_posture(
         identity_data, typosquatting_data, shadow_dns_data, kev_epss_data, cloud_leak_data
     )
 
-    # Riesgo base perimetral (Puertos + Correo + Cripto)
     r_base = (0.40 * p_ports) + (0.35 * p_email) + (0.25 * p_crypto)
 
-    # Riesgo DRPS/EASM extendido (Credenciales Stealers, Takeovers, Buckets abiertos, KEV, Typosquatting)
     r_extended = (
         (0.35 * ext["identity_penalty"]) +
         (0.25 * ext["kev_epss_penalty"]) +
@@ -183,7 +206,6 @@ def evaluate_security_posture(
         (0.10 * ext["brand_penalty"])
     )
 
-    # Combinación ponderada (70% Base Perimetral + 30% DRPS Extendido, con penalización directa ante P0 críticos)
     r_total = min(100.0, (0.70 * r_base) + (0.30 * r_extended))
     s_posture = round(100.0 - r_total, 1)
 
@@ -222,7 +244,13 @@ def evaluate_security_posture(
             "Almacenamiento Cloud público detectado: riesgo dual ante ANCI (Ley 21.663) y Protección de Datos Personales (Ley 21.719)."
         )
 
-    # Huella Maestra de Deriva (Global Drift Hash) para comparar cambios en Firebase
+    sovereignty = dns_data.get("asn_sovereignty", {})
+    if sovereignty.get("country_code") and not sovereignty.get("hosted_in_chile"):
+        regulatory_notes.append(
+            f"Jurisdicción de Alojamiento: Infraestructura web alojada fuera de Chile ({sovereignty.get('country')} - {sovereignty.get('isp_org')}). "
+            "Exige validar cláusulas de transferencia internacional de datos bajo la Ley N° 21.719."
+        )
+
     global_fingerprints = {
         "score": s_posture,
         "grade": grade,

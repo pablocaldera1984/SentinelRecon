@@ -8,8 +8,6 @@ from typing import Dict, Any, List, Optional
 CISA_KEV_FEED_URL = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
 FIRST_EPSS_API_URL = "https://api.first.org/data/v1/epss"
 
-# Mapeo determinista de vectores críticos perimetrales (Windows Server / Linux / AI Local)
-# Asocia puertos y servicios expuestos en internet con CVEs emblemáticos monitoreados por CISA/FIRST
 PERIMETER_PORT_RISK_MAP = {
     3389: {
         "service": "Windows Remote Desktop (RDP)",
@@ -35,11 +33,53 @@ PERIMETER_PORT_RISK_MAP = {
         "reference_cves": ["CVE-2024-6387", "CVE-2023-38408"],
         "risk_summary": "Consola administrativa SSH expuesta al perímetro público (ej. regreSSHion)."
     },
+    21: {
+        "service": "FTP File Transfer Server",
+        "os_focus": "Multiplataforma",
+        "reference_cves": ["CVE-2024-46483"],
+        "risk_summary": "Transferencia de archivos sin cifrado nativo expuesta a intercepción de credenciales."
+    },
+    3306: {
+        "service": "MySQL / MariaDB Database",
+        "os_focus": "Database Server",
+        "reference_cves": ["CVE-2024-21096"],
+        "risk_summary": "Motor de base de datos relacional expuesto directamente al perímetro público."
+    },
+    5432: {
+        "service": "PostgreSQL Database",
+        "os_focus": "Database Server",
+        "reference_cves": ["CVE-2024-10979"],
+        "risk_summary": "Instancia PostgreSQL expuesta a intentos de acceso directo y exfiltración."
+    },
+    6379: {
+        "service": "Redis In-Memory Store",
+        "os_focus": "Linux / Cloud Cache",
+        "reference_cves": ["CVE-2022-0543", "CVE-2024-31449"],
+        "risk_summary": "Almacén de memoria/caché expuesto a ejecución remota de código o secuestro de sesiones."
+    },
+    27017: {
+        "service": "MongoDB NoSQL Database",
+        "os_focus": "Database Server",
+        "reference_cves": ["CVE-2024-1351"],
+        "risk_summary": "Base documental NoSQL expuesta a secuestro y extorsión de datos ( Ley 21.719)."
+    },
     8080: {
         "service": "HTTP Proxy / Panel Administrativo Alternativo",
         "os_focus": "Multiplataforma (Tomcat / Jenkins / Web Admin)",
         "reference_cves": ["CVE-2024-23897", "CVE-2024-38856"],
         "risk_summary": "Puerto de administración o aplicación secundaria sin blindaje TLS estricto."
+    },
+    6333: {
+        "service": "Qdrant Vector Database (Shadow AI)",
+        "os_focus": "AI RAG Infrastructure",
+        "reference_cves": ["CVE-2024-3829"],
+        "risk_summary": "Base de datos vectorial de IA expuesta con riesgo de fuga de embeddings corporativos."
+    },
+    8000: {
+        "service": "vLLM / FastAPI Inference Server (Shadow AI)",
+        "os_focus": "AI Inference Host",
+        "reference_cves": ["CVE-2024-8309"],
+        "risk_summary": "Endpoint de inferencia LLM expuesto sin pasarela de autenticación."
     },
     11434: {
         "service": "Ollama Local LLM Server",
@@ -49,14 +89,10 @@ PERIMETER_PORT_RISK_MAP = {
     }
 }
 
-# Caché ligero en memoria para no descargar el JSON completo de CISA en cada petición seguida
 _CISA_CACHE: Dict[str, Any] = {"catalog": {}, "version": None}
 
 
 async def _load_cisa_kev_catalog(timeout: float = 8.0) -> Dict[str, Dict[str, Any]]:
-    """
-    Descarga y mapea en memoria el catálogo oficial CISA Known Exploited Vulnerabilities (KEV).
-    """
     if _CISA_CACHE["catalog"]:
         return _CISA_CACHE["catalog"]
 
@@ -89,14 +125,10 @@ async def _load_cisa_kev_catalog(timeout: float = 8.0) -> Dict[str, Dict[str, An
 
 
 async def _fetch_epss_scores(cve_list: List[str], timeout: float = 5.0) -> Dict[str, Dict[str, float]]:
-    """
-    Consulta por lotes la API pública de FIRST EPSS (sin API Key) para obtener
-    la probabilidad matemática de explotación en los próximos 30 días.
-    """
     if not cve_list:
         return {}
 
-    unique_cves = sorted(list(set(cve_list)))
+    unique_cves = sorted(list(set(cve_list)))[:40]
     csv_cves = ",".join(unique_cves)
     scores_map: Dict[str, Dict[str, float]] = {}
 
@@ -125,13 +157,10 @@ async def scan_kev_epss_prioritization(
     web_data: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
     """
-    Módulo 4: Sentinel KEV-EPSS Prioritizer.
-    Cruza los puertos y servicios expuestos en el perímetro con CISA KEV (explotación activa)
-    y FIRST EPSS (predicción a 30 días) para separar emergencias P0 del ruido teórico.
+    Módulo 4: Sentinel KEV-EPSS Prioritizer + Shodan InternetDB CVE Fusion.
     """
     clean_domain = domain.strip().lower()
 
-    # Extraer lista de números de puerto abiertos
     open_ports: List[int] = []
     if open_ports_data and "open_ports" in open_ports_data:
         for p in open_ports_data["open_ports"]:
@@ -140,8 +169,12 @@ async def scan_kev_epss_prioritization(
             elif isinstance(p, int):
                 open_ports.append(p)
 
-    # Identificar CVEs candidatos según la superficie expuesta (excluyendo 80 y 443 estándar)
-    candidate_cves: List[str] = []
+    # Extraer CVEs pasivos detectados por Shodan InternetDB en la IP del objetivo
+    shodan_cves: List[str] = []
+    if open_ports_data and "passive_internetdb_intel" in open_ports_data:
+        shodan_cves = (open_ports_data["passive_internetdb_intel"].get("vulns") or [])[:15]
+
+    candidate_cves: List[str] = list(shodan_cves)
     exposed_Risk_surfaces: List[Dict[str, Any]] = []
 
     for port in open_ports:
@@ -156,18 +189,31 @@ async def scan_kev_epss_prioritization(
                 "evaluated_cves": mapping["reference_cves"]
             })
 
-    # Descargar en paralelo el catálogo CISA KEV y los puntajes FIRST EPSS
+    if shodan_cves:
+        exposed_Risk_surfaces.append({
+            "port": 443,
+            "service": "Huella Pasiva de Servidor (Shodan InternetDB)",
+            "os_focus": "Infraestructura Pública Expuesta",
+            "risk_summary": "Vulnerabilidades reportadas por telemetría global sobre la IP pública del activo.",
+            "evaluated_cves": shodan_cves
+        })
+
     cisa_catalog, epss_scores = await asyncio.gather(
         _load_cisa_kev_catalog(),
         _fetch_epss_scores(candidate_cves)
     )
 
     prioritized_findings: List[Dict[str, Any]] = []
+    seen_cves = set()
     same_day_p0_count = 0
     ransomware_vectors_count = 0
 
     for surface in exposed_Risk_surfaces:
         for cve_id in surface["evaluated_cves"]:
+            if cve_id in seen_cves:
+                continue
+            seen_cves.add(cve_id)
+
             in_kev = cve_id in cisa_catalog
             kev_info = cisa_catalog.get(cve_id, {})
             epss_info = epss_scores.get(cve_id, {
@@ -179,7 +225,6 @@ async def scan_kev_epss_prioritization(
             is_ransomware = kev_info.get("knownRansomwareCampaignUse") == "Known"
             epss_prob = epss_info["epss_probability"]
 
-            # Triaje Determinista Pre-LLM (P0 Same-Day Incident vs P1/P2)
             if in_kev or epss_prob >= 0.50:
                 triage_decision = "P0_SAME_DAY_INCIDENT"
                 same_day_p0_count += 1

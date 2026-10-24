@@ -17,7 +17,7 @@ from modules.cloud_leak_scanner import scan_cloud_storage_leaks
 from core.scoring import evaluate_security_posture
 from core.report_ai import generate_executive_analysis
 
-app = FastAPI(title="SentinelRecon EASM & DRPS API", version="2.0.0")
+app = FastAPI(title="SentinelRecon EASM & DRPS API", version="2.1.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -34,7 +34,7 @@ class ScanRequest(BaseModel):
 
 @app.get("/")
 def health_check():
-    return {"status": "ok", "service": "SentinelRecon EASM + DRPS + TPRM v2.0"}
+    return {"status": "ok", "service": "SentinelRecon EASM + DRPS + TPRM v2.1"}
 
 
 @app.post("/api/scan")
@@ -44,13 +44,12 @@ async def run_scan(payload: ScanRequest):
         raise HTTPException(status_code=400, detail="Debe proporcionar un dominio válido.")
 
     try:
-        # 1. Escaneo Asíncrono en Paralelo de los 7 motores
+        # 1. Fase A: Escaneo en paralelo de sondas primarias
         (
             dns_res,
             web_res,
             port_res,
             identity_res,
-            typo_res,
             shadow_res,
             cloud_res
         ) = await asyncio.gather(
@@ -58,14 +57,18 @@ async def run_scan(payload: ScanRequest):
             scan_web_crypto(domain),
             scan_critical_ports(domain),
             scan_identity_exposure(domain),
-            scan_brand_typosquatting(domain),
             scan_shadow_dns_and_takeover(domain),
             scan_cloud_storage_leaks(domain)
         )
 
-        kev_res = await scan_kev_epss_prioritization(domain, open_ports_data=port_res, web_data=web_res)
+        # 2. Fase B: Cruce de Favicon Hash (Clones Visuales) y Matriz KEV/EPSS + Shodan InternetDB
+        fav_hash = web_res.get("http_headers", {}).get("favicon_mmh3")
+        typo_res, kev_res = await asyncio.gather(
+            scan_brand_typosquatting(domain, original_favicon_mmh3=fav_hash),
+            scan_kev_epss_prioritization(domain, open_ports_data=port_res, web_data=web_res)
+        )
 
-        # 2. Evaluación de Postura y Scoring Determinista
+        # 3. Evaluación de Postura y Scoring Determinista
         posture = evaluate_security_posture(
             dns_res, web_res, port_res,
             identity_data=identity_res,
@@ -92,7 +95,7 @@ async def run_scan(payload: ScanRequest):
             "telemetria": telemetria
         }
 
-        # 3. Síntesis Cognitiva Multirrol con Gemini
+        # 4. Síntesis Cognitiva Multirrol con Gemini
         reporte_ia = generate_executive_analysis(pipeline_payload)
 
         return {
