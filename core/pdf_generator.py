@@ -16,20 +16,13 @@ HTML_TEMPLATE = """
             color: #1e293b;
             background-color: #ffffff;
             margin: 0;
-            padding: 16px;
-            font-size: 11.5px;
-            line-height: 1.42;
+            padding: 14px;
+            font-size: 11px;
+            line-height: 1.4;
         }
         .avoid-cut {
             break-inside: avoid !important;
             page-break-inside: avoid !important;
-        }
-        .page-break {
-            page-break-before: always !important;
-            break-before: page !important;
-            height: 0;
-            margin: 0;
-            padding: 0;
         }
         .header {
             display: flex;
@@ -37,7 +30,7 @@ HTML_TEMPLATE = """
             align-items: flex-start;
             border-bottom: 2px solid #0f172a;
             padding-bottom: 10px;
-            margin-bottom: 14px;
+            margin-bottom: 12px;
         }
         .logo-title h1 {
             margin: 0;
@@ -61,16 +54,16 @@ HTML_TEMPLATE = """
             background: #f8fafc;
             border: 1px solid #e2e8f0;
             border-radius: 8px;
-            padding: 12px;
-            margin-bottom: 14px;
+            padding: 10px 12px;
+            margin-bottom: 12px;
             align-items: center;
         }
         .grade-badge {
-            font-size: 34px;
+            font-size: 32px;
             font-weight: 800;
-            width: 64px;
-            height: 64px;
-            line-height: 64px;
+            width: 60px;
+            height: 60px;
+            line-height: 60px;
             text-align: center;
             border-radius: 8px;
             margin-right: 14px;
@@ -83,50 +76,53 @@ HTML_TEMPLATE = """
         .grade-D { background-color: #f97316; }
         .grade-F { background-color: #dc2626; }
         .grade-info h3 {
-            margin: 0 0 4px 0;
-            font-size: 14px;
+            margin: 0 0 3px 0;
+            font-size: 13.5px;
             color: #0f172a;
         }
         .grade-info p {
             margin: 0;
             color: #475569;
-            font-size: 11px;
+            font-size: 10.5px;
         }
         .section-title {
-            font-size: 12.5px;
+            font-size: 12px;
             font-weight: 700;
             color: #0f172a;
             border-left: 4px solid #0284c7;
             padding-left: 8px;
-            margin: 16px 0 8px 0;
+            margin: 14px 0 8px 0;
             text-transform: uppercase;
         }
         .summary-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 10px;
-            margin-bottom: 12px;
+            gap: 8px;
+            margin-bottom: 10px;
         }
         .summary-card {
-            background: #f1f5f9;
-            padding: 10px;
+            background: #f8fafc;
+            padding: 9px 10px;
             border-radius: 6px;
             border: 1px solid #e2e8f0;
         }
         .summary-card h4 {
             margin: 0 0 4px 0;
             color: #0f172a;
-            font-size: 11px;
+            font-size: 10.5px;
         }
         .summary-card p {
             margin: 0;
-            font-size: 10px;
+            font-size: 9.8px;
             color: #334155;
         }
+        .badge-ok { background: #dcfce7; color: #166534; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 8.5px; text-transform: uppercase; }
+        .badge-warn { background: #fef3c7; color: #92400e; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 8.5px; text-transform: uppercase; }
+        .badge-crit { background: #fee2e2; color: #991b1b; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 8.5px; text-transform: uppercase; }
         table {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 12px;
+            margin-bottom: 10px;
         }
         tr {
             break-inside: avoid !important;
@@ -136,7 +132,7 @@ HTML_TEMPLATE = """
             padding: 5px 7px;
             text-align: left;
             border-bottom: 1px solid #e2e8f0;
-            font-size: 10px;
+            font-size: 9.8px;
             vertical-align: top;
         }
         th {
@@ -149,30 +145,30 @@ HTML_TEMPLATE = """
             padding: 1.5px 4px;
             border-radius: 4px;
             font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-            font-size: 9.5px;
+            font-size: 9px;
             color: #0f172a;
             word-break: break-all;
         }
         .cmd-box {
             background: #0f172a;
             color: #38bdf8;
-            padding: 7px 9px;
+            padding: 6px 8px;
             border-radius: 4px;
             font-family: monospace;
-            font-size: 8.8px;
+            font-size: 8.5px;
             display: block;
             white-space: pre-wrap;
             word-break: break-all;
-            line-height: 1.45;
+            line-height: 1.4;
         }
         .badge-provider {
             display: inline-block;
             background: #e0f2fe;
             color: #0369a1;
-            padding: 3px 7px;
+            padding: 3px 6px;
             border-radius: 4px;
             font-weight: bold;
-            font-size: 9px;
+            font-size: 8.8px;
         }
         .crit-CRÍTICA, .crit-CRITICA, .crit-CRITICAL, .crit-critical { color: #dc2626; font-weight: bold; }
         .crit-ALTA, .crit-high, .crit-warning { color: #f97316; font-weight: bold; }
@@ -182,25 +178,25 @@ HTML_TEMPLATE = """
             background: #eff6ff;
             border: 1px solid #bfdbfe;
             border-left: 4px solid #0284c7;
-            padding: 9px 11px;
+            padding: 8px 10px;
             border-radius: 6px;
-            margin-bottom: 10px;
-            font-size: 10px;
+            margin-bottom: 8px;
+            font-size: 9.8px;
             color: #1e3a8a;
         }
         .anci-box {
             background: #fffbeb;
             border: 1px solid #fde68a;
             border-left: 4px solid #d97706;
-            padding: 10px 12px;
+            padding: 9px 11px;
             border-radius: 6px;
-            margin-bottom: 12px;
-            font-size: 10px;
+            margin-bottom: 10px;
+            font-size: 9.8px;
         }
         .anci-box h4 {
             margin: 0 0 4px 0;
             color: #92400e;
-            font-size: 11px;
+            font-size: 10.5px;
         }
         .seal-banner {
             display: flex;
@@ -208,37 +204,32 @@ HTML_TEMPLATE = """
             align-items: center;
             background: #f0f9ff;
             border: 1px solid #bae6fd;
-            padding: 9px 12px;
+            padding: 8px 11px;
             border-radius: 6px;
-            margin-top: 12px;
-            font-size: 10px;
+            margin-top: 10px;
+            font-size: 9.8px;
         }
         .footer-cta {
             background: #0f172a;
             color: #ffffff;
-            padding: 12px;
+            padding: 10px;
             border-radius: 8px;
-            margin-top: 14px;
+            margin-top: 12px;
             text-align: center;
         }
         .footer-cta h3 {
-            margin: 0 0 4px 0;
+            margin: 0 0 3px 0;
             color: #38bdf8;
-            font-size: 13px;
+            font-size: 12.5px;
         }
         .footer-cta p {
             margin: 0;
-            font-size: 10px;
+            font-size: 9.5px;
             color: #cbd5e1;
-        }
-        @media print {
-            body { padding: 0; }
-            .no-print { display: none; }
         }
     </style>
 </head>
 <body>
-    <!-- ================= PÁGINA 1 ================= -->
     <div class="header avoid-cut">
         <div class="logo-title">
             <h1>SENTINEL<span>RECON</span> <small style="font-size:12px; color:#0284c7;">v2.1</small></h1>
@@ -258,113 +249,6 @@ HTML_TEMPLATE = """
         <div class="grade-info">
             <h3>Puntaje de Postura Perimetral y Riesgo Digital: {{ reporte.resumen_ejecutivo.puntaje_global }} / 100</h3>
             <p>{{ reporte.prescripcion_endpoint_edr.necesidad_defensa_profundidad }}</p>
-        </div>
-    </div>
-
-    <!-- FICHA TÉCNICA PERIMETRAL Y SOBERANÍA DE DATOS (ENRIQUECIDA v2.1) -->
-    <div class="summary-grid avoid-cut" style="margin-bottom: 14px;">
-        <div class="summary-card" style="background:#ffffff; border:1px solid #cbd5e1;">
-            <h4 style="color:#0284c7; font-size:10.5px; text-transform:uppercase;">Infraestructura, Soberanía de Datos y Criptografía PQC</h4>
-            <table style="margin-bottom:0; font-size:9.5px;">
-                <tr>
-                    <td style="width:42%; padding:2px 0; border:none; color:#64748b;">IPv4 / Interfaz IPv6:</td>
-                    <td style="padding:2px 0; border:none; font-family:monospace; font-weight:bold;">
-                        {% set host_ip = (telemetria.dns.asn_sovereignty.primary_ip if telemetria and telemetria.dns and telemetria.dns.asn_sovereignty else None) or (telemetria.web.host_ip if telemetria and telemetria.web else 'No resuelta') %}
-                        {{ host_ip }}
-                        {% if telemetria and telemetria.dns and telemetria.dns.ipv6 and telemetria.dns.ipv6.has_ipv6 %}
-                            <span style="color:#0284c7;">(IPv6 Activo)</span>
-                        {% endif %}
-                    </td>
-                </tr>
-                <tr>
-                    <td style="padding:2px 0; border:none; color:#64748b;">ASN / Jurisdicción (Ley 21.719):</td>
-                    <td style="padding:2px 0; border:none; font-weight:bold;">
-                        {% if telemetria and telemetria.dns and telemetria.dns.asn_sovereignty and telemetria.dns.asn_sovereignty.country %}
-                            {{ telemetria.dns.asn_sovereignty.isp_org or telemetria.dns.asn_sovereignty.asn }} —
-                            {% if telemetria.dns.asn_sovereignty.hosted_in_chile %}
-                                <span style="color:#16a34a;">Chile (Local)</span>
-                            {% else %}
-                                <span style="color:#d97706;">{{ telemetria.dns.asn_sovereignty.country }} (Transfronterizo)</span>
-                            {% endif %}
-                        {% else %}
-                            Servidor Público Registrado
-                        {% endif %}
-                    </td>
-                </tr>
-                <tr>
-                    <td style="padding:2px 0; border:none; color:#64748b;">Servidor Web / TLS & PQC:</td>
-                    <td style="padding:2px 0; border:none; font-weight:bold;">
-                        {{ telemetria.web.http_headers.server if (telemetria and telemetria.web and telemetria.web.http_headers and telemetria.web.http_headers.server) else 'Servidor Web Activo' }}
-                        | {{ telemetria.web.ssl_certificate.tls_version if (telemetria and telemetria.web and telemetria.web.ssl_certificate and telemetria.web.ssl_certificate.tls_version) else 'TLS 1.2/1.3' }}
-                        {% if telemetria and telemetria.web and telemetria.web.ssl_certificate and telemetria.web.ssl_certificate.pqc_ready_transport %}
-                            <span style="color:#16a34a;">(PQC Ready)</span>
-                        {% endif %}
-                    </td>
-                </tr>
-                <tr>
-                    <td style="padding:2px 0; border:none; color:#64748b;">Vigencia Certificado SSL:</td>
-                    <td style="padding:2px 0; border:none;">
-                        {{ telemetria.web.ssl_certificate.days_until_expiry if (telemetria and telemetria.web and telemetria.web.ssl_certificate) else '--' }} días restantes
-                        ({{ telemetria.web.ssl_certificate.issuer if (telemetria and telemetria.web and telemetria.web.ssl_certificate) else "CA Pública" }})
-                    </td>
-                </tr>
-                <tr>
-                    <td style="padding:2px 0; border:none; color:#64748b;">HSTS / CSP / Exposición API:</td>
-                    <td style="padding:2px 0; border:none; font-weight:bold;">
-                        {% if telemetria and telemetria.web and telemetria.web.http_headers and telemetria.web.http_headers.hsts %}
-                            <span style="color:#16a34a;">HSTS Activo</span>
-                        {% else %}
-                            <span style="color:#dc2626;">Ausentes (HSTS/CSP)</span>
-                        {% endif %}
-                        {% if telemetria and telemetria.web and telemetria.web.exposure_audit and telemetria.web.exposure_audit.openapi_swagger_exposed %}
-                            | <span style="color:#dc2626;">API Swagger Expuesta</span>
-                        {% endif %}
-                    </td>
-                </tr>
-            </table>
-        </div>
-
-        <div class="summary-card" style="background:#ffffff; border:1px solid #cbd5e1;">
-            <h4 style="color:#0284c7; font-size:10.5px; text-transform:uppercase;">Gobernanza DNS, Identidad Federada & Custodia</h4>
-            <table style="margin-bottom:0; font-size:9.5px;">
-                <tr>
-                    <td style="width:44%; padding:2px 0; border:none; color:#64748b;">Vigencia en NIC Chile / RDAP:</td>
-                    <td style="padding:2px 0; border:none; font-weight:bold;">
-                        {{ telemetria.shadow_dns.domain_registration_rdap.days_until_expiration if (telemetria and telemetria.shadow_dns and telemetria.shadow_dns.domain_registration_rdap and telemetria.shadow_dns.domain_registration_rdap.days_until_expiration is not none) else 'Activo' }} días
-                        (Vence: {{ telemetria.shadow_dns.domain_registration_rdap.expiration_date if (telemetria and telemetria.shadow_dns and telemetria.shadow_dns.domain_registration_rdap and telemetria.shadow_dns.domain_registration_rdap.expiration_date) else 'Vigente' }})
-                    </td>
-                </tr>
-                <tr>
-                    <td style="padding:2px 0; border:none; color:#64748b;">Federación SSO (Entra ID):</td>
-                    <td style="padding:2px 0; border:none; font-family:monospace; font-size:9px; font-weight:bold;">
-                        {% if telemetria and telemetria.identidad and telemetria.identidad.corporate_sso_federation and telemetria.identidad.corporate_sso_federation.uses_entra_id %}
-                            <span style="color:#0284c7;">{{ telemetria.identidad.corporate_sso_federation.name_space_type or 'M365 Tenant' }}</span>
-                            ({{ (telemetria.identidad.corporate_sso_federation.tenant_id or '')[:13] }}...)
-                        {% else %}
-                            Autenticación Estándar / No Federada M365
-                        {% endif %}
-                    </td>
-                </tr>
-                <tr>
-                    <td style="padding:2px 0; border:none; color:#64748b;">Blindaje CAA / MTA-STS / DNSSEC:</td>
-                    <td style="padding:2px 0; border:none; font-weight:bold;">
-                        {% set g = telemetria.dns.governance if (telemetria and telemetria.dns and telemetria.dns.governance) else {} %}
-                        CAA: {{ 'Sí' if g.get('caa_configured') else 'No' }} |
-                        MTA-STS: {{ 'Sí' if g.get('mta_sts_configured') else 'No' }} |
-                        DNSSEC: {{ 'Sí' if g.get('dnssec_enabled') else 'No' }}
-                    </td>
-                </tr>
-                <tr>
-                    <td style="padding:2px 0; border:none; color:#64748b;">Huella Drift Hash (SHA-256):</td>
-                    <td style="padding:2px 0; border:none; font-family:monospace; font-size:8.5px; color:#475569;">
-                        <code>{{ posture.global_drift_hash[:24] if posture else 'SNAPSHOT_REGISTRADO' }}...</code>
-                    </td>
-                </tr>
-                <tr>
-                    <td style="padding:2px 0; border:none; color:#64748b;">Inventario Art. 8 Ley 21.663:</td>
-                    <td style="padding:2px 0; border:none; color:#16a34a; font-weight:bold;">Conforme (Trazabilidad Continua 24/7)</td>
-                </tr>
-            </table>
         </div>
     </div>
 
@@ -399,95 +283,173 @@ HTML_TEMPLATE = """
                 <td>{{ h.puerto_servicio }}</td>
                 <td>
                     <code>{{ h.evidencia_tecnica }}</code><br>
-                    <span style="color:#475569; font-size:9.5px;">{{ h.explicacion_tecnica }}</span>
+                    <span style="color:#475569; font-size:9.2px;">{{ h.explicacion_tecnica }}</span>
                 </td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
 
-    <!-- ================= SALTO A PÁGINA 2 ================= -->
-    <div class="page-break"></div>
+    <!-- NUEVA SECCIÓN PROTAGONISTA: LOS 8 PUNTOS DE INTELIGENCIA AVANZADA v2.1 -->
+    {% if telemetria %}
+    {% set asn = telemetria.dns.asn_sovereignty if telemetria.dns and telemetria.dns.asn_sovereignty else {} %}
+    {% set gov = telemetria.dns.governance if telemetria.dns and telemetria.dns.governance else {} %}
+    {% set ssl = telemetria.web.ssl_certificate if telemetria.web and telemetria.web.ssl_certificate else {} %}
+    {% set exp = telemetria.web.exposure_audit if telemetria.web and telemetria.web.exposure_audit else {} %}
+    {% set sso = telemetria.identidad.corporate_sso_federation if telemetria.identidad and telemetria.identidad.corporate_sso_federation else {} %}
+    {% set sho = telemetria.puertos.passive_internetdb_intel if telemetria.puertos and telemetria.puertos.passive_internetdb_intel else {} %}
+    <div class="section-title avoid-cut">3. Matriz de Controles Avanzados v2.1 (Soberanía, PQC, Entra ID, Shodan & Shadow AI)</div>
+    <div class="summary-grid avoid-cut">
+        <div class="summary-card">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:3px;">
+                <h4>1. Soberanía de Datos & BGP/ASN (Ley 21.719)</h4>
+                {% if asn.get('hosted_in_chile') %}
+                    <span class="badge-ok">Alojamiento Local CL</span>
+                {% else %}
+                    <span class="badge-warn">Flujo Transfronterizo</span>
+                {% endif %}
+            </div>
+            <p>
+                IP: <code>{{ asn.get('primary_ip') or 'N/D' }}</code> | Proveedor: <strong>{{ asn.get('isp_org') or 'Cloud' }}</strong> ({{ asn.get('asn') or 'ASN' }}) en <strong>{{ asn.get('country') or 'Exterior' }}</strong>.
+            </p>
+        </div>
+
+        <div class="summary-card">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:3px;">
+                <h4>2. Criptografía Post-Cuántica (PQC) & TLS</h4>
+                {% if ssl.get('pqc_ready_transport') %}
+                    <span class="badge-ok">TLS 1.3 PQC Ready</span>
+                {% else %}
+                    <span class="badge-warn">{{ ssl.get('tls_version') or 'TLS 1.2' }}</span>
+                {% endif %}
+            </div>
+            <p>
+                Versión: <strong>{{ ssl.get('tls_version') or 'TLS' }}</strong> | Suite: <code>{{ ssl.get('cipher_suite') or 'Estándar' }}</code> ({{ ssl.get('days_until_expiry') }} días restantes).
+            </p>
+        </div>
+
+        <div class="summary-card">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:3px;">
+                <h4>3. Gobernanza DNS (CAA / MTA-STS / DNSSEC)</h4>
+                {% if gov.get('caa_configured') and gov.get('dnssec_enabled') %}
+                    <span class="badge-ok">Blindado</span>
+                {% else %}
+                    <span class="badge-crit">Incompleto</span>
+                {% endif %}
+            </div>
+            <p>
+                Control Emisión SSL (CAA): <strong>{{ 'Activo' if gov.get('caa_configured') else 'Ausente' }}</strong> |
+                MTA-STS: <strong>{{ 'Activo' if gov.get('mta_sts_configured') else 'Ausente' }}</strong> |
+                DNSSEC: <strong>{{ 'Activo' if gov.get('dnssec_enabled') else 'Inactivo' }}</strong>.
+            </p>
+        </div>
+
+        <div class="summary-card">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:3px;">
+                <h4>4. Identidad Federada SSO (Microsoft Entra ID)</h4>
+                {% if sso.get('uses_entra_id') %}
+                    <span class="badge-ok">{{ sso.get('name_space_type') or 'Entra ID' }}</span>
+                {% else %}
+                    <span class="badge-warn">Sin Federación M365</span>
+                {% endif %}
+            </div>
+            <p>
+                {% if sso.get('uses_entra_id') %}
+                    Tenant ID: <code>{{ sso.get('tenant_id') }}</code> (Región: {{ sso.get('tenant_region') or 'Global' }}).
+                {% else %}
+                    Autenticación gestionada fuera de Microsoft Entra ID / sin federación OpenID pública.
+                {% endif %}
+            </p>
+        </div>
+
+        <div class="summary-card">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:3px;">
+                <h4>5. Fusión Shodan InternetDB & CISA KEV</h4>
+                {% if (sho.get('vulns') or []) | length == 0 %}
+                    <span class="badge-ok">0 CVEs Shodan</span>
+                {% else %}
+                    <span class="badge-crit">{{ (sho.get('vulns') or []) | length }} CVEs Detectados</span>
+                {% endif %}
+            </div>
+            <p>
+                Puertos Shodan: <code>{{ (sho.get('shodan_ports') or []) | join(', ') or 'Ninguno' }}</code> |
+                CVEs: <strong>{{ (sho.get('vulns') or [])[:4] | join(', ') or 'Limpio' }}</strong>.
+            </p>
+        </div>
+
+        <div class="summary-card">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:3px;">
+                <h4>6. Clonación Visual Phishing (Favicon mmh3)</h4>
+                {% if (telemetria.typosquatting.visual_phishing_clones_count or 0) == 0 %}
+                    <span class="badge-ok">0 Clones Visuales</span>
+                {% else %}
+                    <span class="badge-crit">Clon Visual Confirmado</span>
+                {% endif %}
+            </div>
+            <p>
+                Hash Favicon: <code>{{ telemetria.web.http_headers.favicon_mmh3 if telemetria.web and telemetria.web.http_headers else 'N/D' }}</code> |
+                Lookalikes con MX: <strong>{{ telemetria.typosquatting.mail_ready_clones_count if telemetria.typosquatting else 0 }}</strong>.
+            </p>
+        </div>
+
+        <div class="summary-card">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:3px;">
+                <h4>7. Exposición API (Swagger / SourceMaps)</h4>
+                {% if not exp.get('openapi_swagger_exposed') and not exp.get('sourcemaps_referenced') %}
+                    <span class="badge-ok">Protegido</span>
+                {% else %}
+                    <span class="badge-crit">Metadatos Expuestos</span>
+                {% endif %}
+            </div>
+            <p>
+                Swagger/OpenAPI: <strong>{{ 'Expuesto' if exp.get('openapi_swagger_exposed') else 'Oculto' }}</strong> |
+                SourceMaps (<code>.js.map</code>): <strong>{{ 'Expuestos' if exp.get('sourcemaps_referenced') else 'Ocultos' }}</strong>.
+            </p>
+        </div>
+
+        <div class="summary-card">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:3px;">
+                <h4>8. Radar Shadow AI (Ollama/vLLM) & Cloud</h4>
+                {% if (telemetria.puertos.shadow_ai_exposed_count or 0) == 0 and (telemetria.cloud_leaks.public_leaking_buckets_count or 0) == 0 %}
+                    <span class="badge-ok">Perímetro Limpio</span>
+                {% else %}
+                    <span class="badge-crit">Exposición Activa</span>
+                {% endif %}
+            </div>
+            <p>
+                Motores IA abiertos: <strong>{{ telemetria.puertos.shadow_ai_exposed_count if telemetria.puertos else 0 }}</strong> |
+                Buckets S3/GCP/Azure/Firebase abiertos: <strong>{{ telemetria.cloud_leaks.public_leaking_buckets_count if telemetria.cloud_leaks else 0 }}</strong>.
+            </p>
+        </div>
+    </div>
+    {% endif %}
 
     {% if reporte.inteligencia_drps_persistencia %}
-    <div class="section-title">3. Inteligencia Continua DRPS: Identidades, Marca, Shadow IT y KEV</div>
+    <div class="section-title avoid-cut">4. Diagnóstico Cognitivo DRPS: Identidades, Marca, Shadow IT y KEV</div>
     <div class="summary-grid avoid-cut">
         <div class="summary-card">
             <h4>Radar Infostealers (Hudson Rock) & Federación SSO</h4>
             <p>{{ reporte.inteligencia_drps_persistencia.diagnostico_infostealers_identidad }}</p>
-            {% if telemetria and telemetria.identidad %}
-            <p style="margin-top:5px; font-weight:bold; color:#0f172a;">
-                Empleados infectados: {{ telemetria.identidad.compromised_employees }} |
-                Usuarios: {{ telemetria.identidad.compromised_users }} |
-                Terceros: {{ telemetria.identidad.third_parties }}
-            </p>
-            {% endif %}
         </div>
         <div class="summary-card">
-            <h4>Escudo Anti-Suplantación BEC y Clonación Visual (Favicon)</h4>
+            <h4>Escudo Anti-Suplantación BEC y Clonación Visual</h4>
             <p>{{ reporte.inteligencia_drps_persistencia.diagnostico_typosquatting_bec }}</p>
-            {% if telemetria and telemetria.typosquatting %}
-            <p style="margin-top:5px; font-weight:bold; color:#0f172a;">
-                Dominios similares: {{ telemetria.typosquatting.active_lookalikes_count }} |
-                Con MX Activo: {{ telemetria.typosquatting.mail_ready_clones_count }} |
-                Clones Visuales: {{ telemetria.typosquatting.visual_phishing_clones_count or 0 }}
-            </p>
-            {% endif %}
         </div>
         <div class="summary-card">
             <h4>Superficie Sombra, Soberanía BGP/ASN y Vigencia NIC.cl</h4>
             <p>{{ reporte.inteligencia_drps_persistencia.diagnostico_shadow_dns_nic }}</p>
-            {% if telemetria and telemetria.shadow_dns and telemetria.shadow_dns.domain_registration_rdap %}
-            <p style="margin-top:5px; font-weight:bold; color:#0f172a;">
-                Subdominios activos: {{ telemetria.shadow_dns.active_subdomains_count }} |
-                Takeovers: {{ telemetria.shadow_dns.takeover_vulnerable_count }}
-            </p>
-            {% endif %}
         </div>
         <div class="summary-card">
             <h4>Priorización CISA KEV / EPSS, Shodan InternetDB & Cloud</h4>
             <p>{{ reporte.inteligencia_drps_persistencia.diagnostico_kev_epss_cloud }}</p>
-            {% if telemetria and telemetria.kev_epss %}
-            <p style="margin-top:5px; font-weight:bold; color:#0f172a;">
-                Incidentes P0: {{ telemetria.kev_epss.same_day_p0_incidents_count }} |
-                Shadow AI: {{ telemetria.puertos.shadow_ai_exposed_count if telemetria.puertos else 0 }} |
-                Buckets Abiertos: {{ telemetria.cloud_leaks.public_leaking_buckets_count if telemetria.cloud_leaks else 0 }}
-            </p>
-            {% endif %}
         </div>
     </div>
-
-    {% if telemetria and telemetria.typosquatting and telemetria.typosquatting.detected_lookalikes %}
-    <table class="avoid-cut">
-        <thead>
-            <tr>
-                <th>Dominio Homógrafo Cercano (Lookalike)</th>
-                <th>Nivel de Riesgo</th>
-                <th>IP Alojamiento</th>
-                <th>Servidor MX Activo</th>
-                <th>Clasificación Pericial</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for d in telemetria.typosquatting.detected_lookalikes[:8] %}
-            <tr>
-                <td><strong>{{ d.squatted_domain }}</strong></td>
-                <td class="crit-{{ d.risk_level }}">{{ d.risk_level | upper }}</td>
-                <td>{{ d.resolved_ips | join(', ') if d.resolved_ips else 'No' }}</td>
-                <td><code>{{ d.mx_servers | join(', ') if d.mx_servers else 'Sin MX' }}</code></td>
-                <td>{{ d.threat_type }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-    {% endif %}
     {% endif %}
 
-    <!-- SECCIÓN DE REMEDIACIÓN Y GESTIÓN DE PROVEEDORES (TPRM) -->
-    <div class="section-title">4. Matriz de Responsabilidades y Minutas para Proveedores (TPRM)</div>
+    <div class="section-title">5. Matriz de Responsabilidades y Minutas para Proveedores (TPRM)</div>
     <div class="tprm-banner avoid-cut">
         <strong>Modelo de Responsabilidad Compartida (Art. 8 Ley N° 21.663):</strong>
-        Aunque la configuración técnica de DNS, SSL o servidores recaiga en proveedores externos de hosting o desarrollo, la responsabilidad legal ante la autoridad y terceros pertenece a la entidad contratante. A continuación se entregan las minutas técnicas listas para enviar a sus proveedores.
+        A continuación se entregan las minutas técnicas listas para enviar como ticket de soporte a sus proveedores externos.
     </div>
 
     {% if reporte.comandos_remediacion_ti %}
@@ -502,27 +464,20 @@ HTML_TEMPLATE = """
         <tbody>
             {% for c in reporte.comandos_remediacion_ti %}
             <tr>
-                <td>
-                    <span class="badge-provider">{{ c.responsable_ejecucion or 'Proveedor Externo' }}</span>
-                </td>
+                <td><span class="badge-provider">{{ c.responsable_ejecucion or 'Proveedor Externo' }}</span></td>
                 <td>
                     <strong>{{ c.componente_afectado }}</strong><br>
-                    <span style="color:#64748b; font-size:9.5px;">{{ c.accion_inmediata }}</span>
+                    <span style="color:#64748b; font-size:9px;">{{ c.accion_inmediata }}</span>
                 </td>
-                <td>
-                    <span class="cmd-box">{{ c.comando_o_script_sugerido }}</span>
-                </td>
+                <td><span class="cmd-box">{{ c.comando_o_script_sugerido }}</span></td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
     {% endif %}
 
-    <!-- ================= SALTO A PÁGINA 3 ================= -->
-    <div class="page-break"></div>
-
     {% if reporte.gobernanza_anci_ley21663 %}
-    <div class="section-title">5. Gobernanza Ley N° 21.663 (ANCI) y Pre-Alerta CSIRT (≤ 3 Horas)</div>
+    <div class="section-title avoid-cut">6. Gobernanza Ley N° 21.663 (ANCI) y Pre-Alerta CSIRT (≤ 3 Horas)</div>
     <div class="anci-box avoid-cut">
         <h4>Dictamen de Inventario Continuo (Art. 8), Soberanía de Datos (Ley 21.719) y TPRM</h4>
         <p><strong>Cumplimiento Art. 8:</strong> {{ reporte.gobernanza_anci_ley21663.estado_inventario_art8 }}</p>
@@ -532,7 +487,7 @@ HTML_TEMPLATE = """
     </div>
     {% endif %}
 
-    <div class="section-title">6. Defensa en Profundidad: Despliegue de SentinelAgent (EDR) en PCs Windows</div>
+    <div class="section-title avoid-cut">7. Defensa en Profundidad: Despliegue de SentinelAgent (EDR) en PCs Windows</div>
     <table class="avoid-cut">
         <thead>
             <tr>
@@ -551,18 +506,6 @@ HTML_TEMPLATE = """
             {% endfor %}
         </tbody>
     </table>
-
-    {% if reporte.inteligencia_drps_persistencia %}
-    <div class="seal-banner avoid-cut">
-        <div>
-            <strong>Vigilancia Perimetral Continua (Drift Engine) & Sello Dinámico B2B:</strong><br>
-            {{ reporte.inteligencia_drps_persistencia.justificacion_monitoreo_continuo }}
-        </div>
-        <div style="text-align:right; font-weight:bold; color:#0284c7; flex-shrink:0; margin-left:12px;">
-            MONITOREADO POR<br>SENTINELRECON 24/7
-        </div>
-    </div>
-    {% endif %}
 
     <div class="footer-cta avoid-cut">
         <h3>Suscripción de Vigilancia Continua SentinelRecon + Piloto SentinelAgent (14 Días)</h3>
