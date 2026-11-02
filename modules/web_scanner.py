@@ -131,7 +131,7 @@ async def audit_web_exposure_and_governance(client: httpx.AsyncClient, domain: s
 def detect_eol_software(server_header: str, x_powered_by: str, home_html: str) -> List[Dict[str, str]]:
     """
     Cruza las versiones expuestas en cabeceras HTTP y código web contra fechas oficiales
-    de Fin de Vida Útil (End-of-Life / EOL) para evidenciar obsolescencia tecnológica.
+    de Fin de Vida Útil (End-of-Life / EOL) explicando en lenguaje simple para qué sirve cada componente.
     """
     eol_findings = []
     combined_banners = f"{server_header or ''} {x_powered_by or ''}".lower()
@@ -144,13 +144,13 @@ def detect_eol_software(server_header: str, x_powered_by: str, home_html: str) -
             eol_findings.append({
                 "component": f"OpenSSL {ver}",
                 "eol_date": "septiembre de 2023",
-                "executive_warning": f"El motor criptográfico del servidor (OpenSSL {ver}) llegó al fin de su vida útil en septiembre de 2023 y ya no recibe parches de seguridad."
+                "executive_warning": f"OpenSSL {ver} (el motor que cifra las conexiones y protege las claves en su servidor) venció en septiembre de 2023 y ya no recibe parches de seguridad."
             })
         elif ver.startswith("1.0."):
             eol_findings.append({
                 "component": f"OpenSSL {ver}",
                 "eol_date": "diciembre de 2019",
-                "executive_warning": f"El motor criptográfico del servidor (OpenSSL {ver}) quedó obsoleto en diciembre de 2019."
+                "executive_warning": f"OpenSSL {ver} (el motor encargado del candado de seguridad de su servidor) quedó obsoleto en diciembre de 2019."
             })
 
     # 2. PHP (5.x, 7.x, 8.0, 8.1)
@@ -161,31 +161,31 @@ def detect_eol_software(server_header: str, x_powered_by: str, home_html: str) -
             eol_findings.append({
                 "component": f"PHP {ver}",
                 "eol_date": "diciembre de 2018",
-                "executive_warning": f"El lenguaje base del sitio (PHP {ver}) venció en diciembre de 2018, exponiendo el sitio a ataques críticos."
+                "executive_warning": f"PHP {ver} (el motor interno que procesa la base de datos y formularios de su web) venció en diciembre de 2018."
             })
-        elif ver.startswith("7.0") or ver.startswith("7.1") or ver.startswith("7.2") or ver.startswith("7.3"):
+        elif ver.startswith(("7.0", "7.1", "7.2", "7.3")):
             eol_findings.append({
                 "component": f"PHP {ver}",
                 "eol_date": "diciembre de 2021",
-                "executive_warning": f"El motor PHP {ver} llegó al fin de su soporte oficial hace más de 4 años (diciembre de 2021)."
+                "executive_warning": f"PHP {ver} (el motor que procesa las solicitudes y accesos de su página web) venció en diciembre de 2021."
             })
         elif ver.startswith("7.4"):
             eol_findings.append({
                 "component": f"PHP {ver}",
                 "eol_date": "noviembre de 2022",
-                "executive_warning": f"El motor PHP {ver} llegó al fin de su vida útil en noviembre de 2022."
+                "executive_warning": f"PHP {ver} (el motor principal del código de su sitio web) llegó al fin de su vida útil en noviembre de 2022."
             })
         elif ver.startswith("8.0"):
             eol_findings.append({
                 "component": f"PHP {ver}",
                 "eol_date": "noviembre de 2023",
-                "executive_warning": f"El motor PHP {ver} llegó al fin de su vida útil en noviembre de 2023."
+                "executive_warning": f"PHP {ver} (el motor que ejecuta las funciones internas de su sitio web) venció en noviembre de 2023."
             })
         elif ver.startswith("8.1"):
             eol_findings.append({
                 "component": f"PHP {ver}",
                 "eol_date": "diciembre de 2025",
-                "executive_warning": f"El motor PHP {ver} finalizó su soporte de seguridad en diciembre de 2025."
+                "executive_warning": f"PHP {ver} (el motor que ejecuta el código interno de su web) finalizó su soporte en diciembre de 2025."
             })
 
     # 3. Nginx 1.18 / 1.16 / 1.14 / 1.20
@@ -196,22 +196,22 @@ def detect_eol_software(server_header: str, x_powered_by: str, home_html: str) -
             eol_findings.append({
                 "component": f"Nginx {ver}",
                 "eol_date": "abril de 2021",
-                "executive_warning": f"El servidor web Nginx {ver} corresponde a una rama lanzada en 2020 cuyo soporte oficial cerró en abril de 2021."
+                "executive_warning": f"Nginx {ver} (el programa base que mantiene en línea su página web y recibe las visitas) cerró su ciclo de soporte en abril de 2021."
             })
-        elif ver.startswith("1.16") or ver.startswith("1.14") or ver.startswith("1.12") or ver.startswith("1.10"):
+        elif ver.startswith(("1.16", "1.14", "1.12", "1.10")):
             eol_findings.append({
                 "component": f"Nginx {ver}",
                 "eol_date": "abril de 2020",
-                "executive_warning": f"El servidor web Nginx {ver} se encuentra fuera de soporte oficial desde 2020."
+                "executive_warning": f"Nginx {ver} (el programa central que sostiene su página web en internet) está fuera de soporte desde abril de 2020."
             })
         elif ver.startswith("1.20"):
             eol_findings.append({
                 "component": f"Nginx {ver}",
                 "eol_date": "mayo de 2022",
-                "executive_warning": f"El servidor web Nginx {ver} finalizó su ciclo de vida en mayo de 2022."
+                "executive_warning": f"Nginx {ver} (el servidor que entrega su página web a los visitantes) finalizó su vida útil en mayo de 2022."
             })
 
-    # 4. Apache 2.2 / Apache 2.4 antiguos
+    # 4. Apache 2.2
     apache_match = re.search(r'apache/(\d+\.\d+\.\d+)', combined_banners)
     if apache_match:
         ver = apache_match.group(1)
@@ -219,24 +219,24 @@ def detect_eol_software(server_header: str, x_powered_by: str, home_html: str) -
             eol_findings.append({
                 "component": f"Apache {ver}",
                 "eol_date": "julio de 2017",
-                "executive_warning": f"El servidor Apache {ver} llegó al fin de su vida útil en julio de 2017."
+                "executive_warning": f"Apache {ver} (el programa base que publica su sitio web en internet) venció en julio de 2017."
             })
 
     # 5. Microsoft IIS 7.x / 8.x
     iis_match = re.search(r'microsoft-iis/(\d+\.\d+)', combined_banners)
     if iis_match:
         ver = iis_match.group(1)
-        if ver.startswith("7.") or ver.startswith("6."):
+        if ver.startswith(("7.", "6.")):
             eol_findings.append({
                 "component": f"Microsoft IIS {ver}",
                 "eol_date": "enero de 2020",
-                "executive_warning": f"El servidor Windows IIS {ver} finalizó su soporte extendido en enero de 2020."
+                "executive_warning": f"Microsoft IIS {ver} (el servidor Windows que publica su web) finalizó su soporte en enero de 2020."
             })
         elif ver.startswith("8."):
             eol_findings.append({
                 "component": f"Microsoft IIS {ver}",
                 "eol_date": "octubre de 2023",
-                "executive_warning": f"El servidor Windows IIS {ver} llegó al fin de su vida útil en octubre de 2023."
+                "executive_warning": f"Microsoft IIS {ver} (el servidor Windows que aloja su web) venció en octubre de 2023."
             })
 
     return eol_findings
@@ -303,19 +303,32 @@ async def audit_web_code_and_surface(
         if ".php" in html_low and not code_audit["php_cgi_surface_exposed"]:
             code_audit["php_exposure_details"].append("Rutas de ejecución .php detectadas en el código público")
 
+        # 3. Escáner de librerías JS antiguas con explicación ejecutiva de para qué sirven
         script_tags = re.findall(r'<script[^>]+src=["\']([^"\']+)["\'][^>]*>', home_html, re.I)
         for src in script_tags:
             src_low = src.lower()
             jq_match = re.search(r'jquery[.-](\d+\.\d+(?:\.\d+)?)', src_low)
             if jq_match:
                 ver = jq_match.group(1)
-                if ver.startswith("1.") or ver.startswith("2.") or ver.startswith("3.0") or ver.startswith("3.1") or ver.startswith("3.2") or ver.startswith("3.3") or ver.startswith("3.4"):
-                    code_audit["outdated_js_libraries"].append(f"jQuery v{ver} (Soporte vencido / Vulnerable a XSS)")
+                if ver.startswith("1."):
+                    code_audit["outdated_js_libraries"].append(
+                        f"jQuery v{ver} — componente que controla los formularios, botones e interacciones donde sus clientes ingresan datos — está vencido hace más de 10 años (2015) y permite inyectar código malicioso para robar información"
+                    )
+                elif ver.startswith("2."):
+                    code_audit["outdated_js_libraries"].append(
+                        f"jQuery v{ver} — componente que procesa los formularios e interacciones de su página web — venció en 2016 y presenta fallas de inyección de código"
+                    )
+                elif ver.startswith(("3.0", "3.1", "3.2", "3.3", "3.4")):
+                    code_audit["outdated_js_libraries"].append(
+                        f"jQuery v{ver} — librería encargada de los formularios y menús interactivos del sitio — finalizó su soporte en 2020 y es vulnerable a manipulación externa"
+                    )
             bs_match = re.search(r'bootstrap[.-](\d+\.\d+(?:\.\d+)?)', src_low)
             if bs_match:
                 ver = bs_match.group(1)
-                if ver.startswith("2.") or ver.startswith("3."):
-                    code_audit["outdated_js_libraries"].append(f"Bootstrap v{ver} (Soporte vencido en 2019)")
+                if ver.startswith(("2.", "3.")):
+                    code_audit["outdated_js_libraries"].append(
+                        f"Bootstrap v{ver} — plantilla visual que estructura las ventanas y menús de su web — quedó obsoleta en 2019 con fallas de seguridad conocidas"
+                    )
 
         full_script_tags = re.findall(r'<script[^>]+src=["\']https?://[^"\']+["\'][^>]*>', home_html, re.I)
         for tag in full_script_tags:
