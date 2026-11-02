@@ -10,6 +10,7 @@ from config import DKIM_SELECTORS, DNS_TIMEOUT
 
 async def check_spf(domain: str, resolver: dns.asyncresolver.Resolver) -> Dict[str, Any]:
     result = {
+        "exists": False,
         "status": "NOT_CONFIGURED",
         "raw_record": None,
         "is_strict": False,
@@ -21,6 +22,7 @@ async def check_spf(domain: str, resolver: dns.asyncresolver.Resolver) -> Dict[s
         for rdata in answers:
             txt_content = "".join([part.decode('utf-8', errors='ignore') for part in rdata.strings])
             if txt_content.startswith("v=spf1"):
+                result["exists"] = True
                 result["raw_record"] = txt_content
                 if "-all" in txt_content:
                     result["status"] = "STRICT"
@@ -50,6 +52,7 @@ async def check_spf(domain: str, resolver: dns.asyncresolver.Resolver) -> Dict[s
 
 async def check_dmarc(domain: str, resolver: dns.asyncresolver.Resolver) -> Dict[str, Any]:
     result = {
+        "exists": False,
         "status": "NOT_CONFIGURED",
         "policy": "none",
         "raw_record": None,
@@ -61,6 +64,7 @@ async def check_dmarc(domain: str, resolver: dns.asyncresolver.Resolver) -> Dict
         for rdata in answers:
             txt_content = "".join([part.decode('utf-8', errors='ignore') for part in rdata.strings])
             if txt_content.startswith("v=DMARC1"):
+                result["exists"] = True
                 result["raw_record"] = txt_content
                 tags = [t.strip() for t in txt_content.split(';') if t.strip()]
                 for tag in tags:
@@ -117,6 +121,17 @@ async def check_aaaa(domain: str, resolver: dns.asyncresolver.Resolver) -> Dict[
         "has_ipv6": len(ipv6_list) > 0,
         "addresses": ipv6_list
     }
+
+
+async def check_nameservers(domain: str, resolver: dns.asyncresolver.Resolver) -> List[str]:
+    """Obtiene los NameServers (NS) del dominio para identificar al proveedor de Hosting comercial."""
+    ns_list = []
+    try:
+        answers = await resolver.resolve(domain, 'NS')
+        ns_list = [str(r.target).rstrip('.').lower() for r in answers]
+    except Exception:
+        pass
+    return ns_list
 
 
 async def check_single_srv(prefix: str, service_name: str, domain: str, resolver: dns.asyncresolver.Resolver) -> List[Dict[str, Any]]:
@@ -219,6 +234,51 @@ async def check_advanced_dns_governance(domain: str, resolver: dns.asyncresolver
     return gov
 
 
+async def check_rbl_blacklists(ip: str, resolver: dns.asyncresolver.Resolver) -> Dict[str, Any]:
+    """
+    Verifica si la IP principal del dominio o servidor de correo figura bloqueada
+    en las principales listas negras internacionales Anti-Spam (DNSBL / RBL).
+    """
+    rbl_result = {
+        "checked_ip": ip,
+        "is_blacklisted": False,
+        "listed_count": 0,
+        "blacklists_detected": []
+    }
+    if not ip:
+        return rbl_result
+
+    parts = ip.split(".")
+    if len(parts) != 4:
+        return rbl_result
+
+    reversed_ip = ".".join(reversed(parts))
+    rbl_providers = [
+        ("zen.spamhaus.org", "Spamhaus ZEN"),
+        ("bl.spamcop.net", "SpamCop Blocking List"),
+        ("b.barracudacentral.org", "Barracuda Reputation Block List"),
+        ("dnsbl.sorbs.net", "SORBS DNSBL")
+    ]
+
+    async def query_rbl(zone: str, label: str):
+        query_host = f"{reversed_ip}.{zone}"
+        try:
+            ans = await resolver.resolve(query_host, 'A')
+            for r in ans:
+                resp_ip = r.to_text().strip()
+                # Spamhaus devuelve 127.255.255.x cuando se consulta desde un resolver público abierto; lo filtramos para evitar falsos positivos
+                if resp_ip.startswith("127.0.0."):
+                    rbl_result["blacklists_detected"].append(label)
+                    break
+        except Exception:
+            pass
+
+    await asyncio.gather(*(query_rbl(z, lbl) for z, lbl in rbl_providers))
+    rbl_result["listed_count"] = len(rbl_result["blacklists_detected"])
+    rbl_result["is_blacklisted"] = rbl_result["listed_count"] > 0
+    return rbl_result
+
+
 async def check_asn_and_data_sovereignty(domain: str, resolver: dns.asyncresolver.Resolver) -> Dict[str, Any]:
     """Resuelve IP primaria y obtiene ASN, Proveedor BGP y Jurisdicción de Datos (Ley 21.719)."""
     info = {
@@ -255,7 +315,7 @@ async def check_asn_and_data_sovereignty(domain: str, resolver: dns.asyncresolve
                         info["hosted_in_chile"] = data.get("countryCode") == "CL"
                         info["data_sovereignty_status"] = (
                             "ALOJAMIENTO LOCAL (CHILE)" if info["hosted_in_chile"]
-                            else f"FLUJO TRANSFRONTERIZO ({info['country']} - Auditar Art. Ley 21.719)"
+                            else f"FLUJO TRANSFRONTERIZO ({info['country']} - Auditar Ley 21.719)"
                         )
         except Exception:
             pass
@@ -272,19 +332,24 @@ async def scan_dns_email(domain: str) -> Dict[str, Any]:
     spf_task = check_spf(domain, resolver)
     dmarc_task = check_dmarc(domain, resolver)
     aaaa_task = check_aaaa(domain, resolver)
+    ns_task = check_nameservers(domain, resolver)
     srv_task = check_srv_records(domain, resolver)
     gov_task = check_advanced_dns_governance(domain, resolver)
     asn_task = check_asn_and_data_sovereignty(domain, resolver)
     dkim_tasks = [check_dkim_selector(domain, sel, resolver) for sel in DKIM_SELECTORS]
     
-    spf_res, dmarc_res, aaaa_res, srv_res, gov_res, asn_res, *dkim_results = await asyncio.gather(
-        spf_task, dmarc_task, aaaa_task, srv_task, gov_task, asn_task, *dkim_tasks
+    spf_res, dmarc_res, aaaa_res, ns_res, srv_res, gov_res, asn_res, *dkim_results = await asyncio.gather(
+        spf_task, dmarc_task, aaaa_task, ns_task, srv_task, gov_task, asn_task, *dkim_tasks
     )
+    
+    # Consultar listas negras RBL sobre la IP primaria resuelta
+    rbl_res = await check_rbl_blacklists(asn_res.get("primary_ip"), resolver)
     
     active_dkim = [res for res in dkim_results if res.get("found")]
     
     return {
         "domain": domain,
+        "nameservers": ns_res,
         "spf": spf_res,
         "dmarc": dmarc_res,
         "dkim": {
@@ -295,5 +360,6 @@ async def scan_dns_email(domain: str) -> Dict[str, Any]:
         "ipv6": aaaa_res,
         "srv": srv_res,
         "governance": gov_res,
-        "asn_sovereignty": asn_res
+        "asn_sovereignty": asn_res,
+        "rbl_blacklist": rbl_res
     }
