@@ -128,6 +128,120 @@ async def audit_web_exposure_and_governance(client: httpx.AsyncClient, domain: s
     return exposure
 
 
+def detect_eol_software(server_header: str, x_powered_by: str, home_html: str) -> List[Dict[str, str]]:
+    """
+    Cruza las versiones expuestas en cabeceras HTTP y código web contra fechas oficiales
+    de Fin de Vida Útil (End-of-Life / EOL) para evidenciar obsolescencia tecnológica.
+    """
+    eol_findings = []
+    combined_banners = f"{server_header or ''} {x_powered_by or ''}".lower()
+
+    # 1. OpenSSL 1.1.1 / 1.0.2 / 1.0.1
+    openssl_match = re.search(r'openssl/(\d+\.\d+\.\d+[a-z]?)', combined_banners)
+    if openssl_match:
+        ver = openssl_match.group(1)
+        if ver.startswith("1.1.1"):
+            eol_findings.append({
+                "component": f"OpenSSL {ver}",
+                "eol_date": "septiembre de 2023",
+                "executive_warning": f"El motor criptográfico del servidor (OpenSSL {ver}) llegó al fin de su vida útil en septiembre de 2023 y ya no recibe parches de seguridad."
+            })
+        elif ver.startswith("1.0."):
+            eol_findings.append({
+                "component": f"OpenSSL {ver}",
+                "eol_date": "diciembre de 2019",
+                "executive_warning": f"El motor criptográfico del servidor (OpenSSL {ver}) quedó obsoleto en diciembre de 2019."
+            })
+
+    # 2. PHP (5.x, 7.x, 8.0, 8.1)
+    php_match = re.search(r'php/(\d+\.\d+(?:\.\d+)?)', combined_banners)
+    if php_match:
+        ver = php_match.group(1)
+        if ver.startswith("5."):
+            eol_findings.append({
+                "component": f"PHP {ver}",
+                "eol_date": "diciembre de 2018",
+                "executive_warning": f"El lenguaje base del sitio (PHP {ver}) venció en diciembre de 2018, exponiendo el sitio a ataques críticos."
+            })
+        elif ver.startswith("7.0") or ver.startswith("7.1") or ver.startswith("7.2") or ver.startswith("7.3"):
+            eol_findings.append({
+                "component": f"PHP {ver}",
+                "eol_date": "diciembre de 2021",
+                "executive_warning": f"El motor PHP {ver} llegó al fin de su soporte oficial hace más de 4 años (diciembre de 2021)."
+            })
+        elif ver.startswith("7.4"):
+            eol_findings.append({
+                "component": f"PHP {ver}",
+                "eol_date": "noviembre de 2022",
+                "executive_warning": f"El motor PHP {ver} llegó al fin de su vida útil en noviembre de 2022."
+            })
+        elif ver.startswith("8.0"):
+            eol_findings.append({
+                "component": f"PHP {ver}",
+                "eol_date": "noviembre de 2023",
+                "executive_warning": f"El motor PHP {ver} llegó al fin de su vida útil en noviembre de 2023."
+            })
+        elif ver.startswith("8.1"):
+            eol_findings.append({
+                "component": f"PHP {ver}",
+                "eol_date": "diciembre de 2025",
+                "executive_warning": f"El motor PHP {ver} finalizó su soporte de seguridad en diciembre de 2025."
+            })
+
+    # 3. Nginx 1.18 / 1.16 / 1.14 / 1.20
+    nginx_match = re.search(r'nginx/(\d+\.\d+(?:\.\d+)?)', combined_banners)
+    if nginx_match:
+        ver = nginx_match.group(1)
+        if ver.startswith("1.18"):
+            eol_findings.append({
+                "component": f"Nginx {ver}",
+                "eol_date": "abril de 2021",
+                "executive_warning": f"El servidor web Nginx {ver} corresponde a una rama lanzada en 2020 cuyo soporte oficial cerró en abril de 2021."
+            })
+        elif ver.startswith("1.16") or ver.startswith("1.14") or ver.startswith("1.12") or ver.startswith("1.10"):
+            eol_findings.append({
+                "component": f"Nginx {ver}",
+                "eol_date": "abril de 2020",
+                "executive_warning": f"El servidor web Nginx {ver} se encuentra fuera de soporte oficial desde 2020."
+            })
+        elif ver.startswith("1.20"):
+            eol_findings.append({
+                "component": f"Nginx {ver}",
+                "eol_date": "mayo de 2022",
+                "executive_warning": f"El servidor web Nginx {ver} finalizó su ciclo de vida en mayo de 2022."
+            })
+
+    # 4. Apache 2.2 / Apache 2.4 antiguos
+    apache_match = re.search(r'apache/(\d+\.\d+\.\d+)', combined_banners)
+    if apache_match:
+        ver = apache_match.group(1)
+        if ver.startswith("2.2."):
+            eol_findings.append({
+                "component": f"Apache {ver}",
+                "eol_date": "julio de 2017",
+                "executive_warning": f"El servidor Apache {ver} llegó al fin de su vida útil en julio de 2017."
+            })
+
+    # 5. Microsoft IIS 7.x / 8.x
+    iis_match = re.search(r'microsoft-iis/(\d+\.\d+)', combined_banners)
+    if iis_match:
+        ver = iis_match.group(1)
+        if ver.startswith("7.") or ver.startswith("6."):
+            eol_findings.append({
+                "component": f"Microsoft IIS {ver}",
+                "eol_date": "enero de 2020",
+                "executive_warning": f"El servidor Windows IIS {ver} finalizó su soporte extendido en enero de 2020."
+            })
+        elif ver.startswith("8."):
+            eol_findings.append({
+                "component": f"Microsoft IIS {ver}",
+                "eol_date": "octubre de 2023",
+                "executive_warning": f"El servidor Windows IIS {ver} llegó al fin de su vida útil en octubre de 2023."
+            })
+
+    return eol_findings
+
+
 async def audit_web_code_and_surface(
     client: httpx.AsyncClient,
     domain: str,
@@ -136,16 +250,19 @@ async def audit_web_code_and_surface(
     set_cookie_list: List[str]
 ) -> Dict[str, Any]:
     """
-    Inspecciona pasivamente el código HTML/JS entregado por el sitio web y rutas críticas:
-    1. Exposición PHP / CGI / Superficie php2shell (X-Powered-By, phpinfo, xmlrpc.php, wp-json users).
-    2. Librerías JavaScript vulnerables/obsoletas (jQuery, Bootstrap, etc.) y ausencia de SRI.
-    3. Archivos de configuración o respaldo olvidados (.env, .git/config, wp-config.php.bak).
-    4. Secretos expuestos en frontend, formularios inseguros y cookies sin HttpOnly/Secure.
-    5. Inyección de iframes ocultos (Web Defacement) y rastreadores de privacidad (Ley 21.719).
+    Inspecciona pasivamente el código HTML/JS entregado por el sitio web, fechas de vencimiento EOL y rutas críticas.
     """
+    eol_list = detect_eol_software(
+        resp_headers.get("server", ""),
+        resp_headers.get("x-powered-by", ""),
+        home_html
+    )
+
     code_audit = {
         "x_powered_by": resp_headers.get("x-powered-by"),
         "cms_generator": None,
+        "eol_software_detected": eol_list,
+        "eol_count": len(eol_list),
         "php_cgi_surface_exposed": False,
         "php_exposure_details": [],
         "cms_backdoors_exposed": [],
@@ -163,7 +280,6 @@ async def audit_web_code_and_surface(
         }
     }
 
-    # 1. Evaluar cabeceras X-Powered-By y Server en busca de PHP / CGI expuesto
     x_pow = (resp_headers.get("x-powered-by") or "").lower()
     srv = (resp_headers.get("server") or "").lower()
     if "php" in x_pow or "php" in srv:
@@ -172,7 +288,6 @@ async def audit_web_code_and_surface(
             f"Divulgación activa de intérprete en cabecera ({resp_headers.get('x-powered-by') or resp_headers.get('server')})"
         )
 
-    # 2. Evaluar banderas de seguridad en Cookies de sesión (HttpOnly / Secure)
     for cookie_str in set_cookie_list:
         c_low = cookie_str.lower()
         if "httponly" not in c_low or "secure" not in c_low:
@@ -181,16 +296,13 @@ async def audit_web_code_and_surface(
     if home_html:
         html_low = home_html.lower()
 
-        # Meta Generator (WordPress, Joomla, Drupal, Laravel, etc.)
         gen_match = re.search(r'<meta[^>]+name=["\']generator["\'][^>]+content=["\']([^"\']+)["\']', home_html, re.I)
         if gen_match:
             code_audit["cms_generator"] = gen_match.group(1).strip()
 
-        # Detectar referencias a rutas .php directas en el DOM
         if ".php" in html_low and not code_audit["php_cgi_surface_exposed"]:
             code_audit["php_exposure_details"].append("Rutas de ejecución .php detectadas en el código público")
 
-        # 3. Escáner de librerías JS antiguas (ej. jQuery 1.x / 2.x, Bootstrap 3.x) y falta de SRI
         script_tags = re.findall(r'<script[^>]+src=["\']([^"\']+)["\'][^>]*>', home_html, re.I)
         for src in script_tags:
             src_low = src.lower()
@@ -198,20 +310,18 @@ async def audit_web_code_and_surface(
             if jq_match:
                 ver = jq_match.group(1)
                 if ver.startswith("1.") or ver.startswith("2.") or ver.startswith("3.0") or ver.startswith("3.1") or ver.startswith("3.2") or ver.startswith("3.3") or ver.startswith("3.4"):
-                    code_audit["outdated_js_libraries"].append(f"jQuery v{ver} (Vulnerable a XSS)")
+                    code_audit["outdated_js_libraries"].append(f"jQuery v{ver} (Soporte vencido / Vulnerable a XSS)")
             bs_match = re.search(r'bootstrap[.-](\d+\.\d+(?:\.\d+)?)', src_low)
             if bs_match:
                 ver = bs_match.group(1)
                 if ver.startswith("2.") or ver.startswith("3."):
-                    code_audit["outdated_js_libraries"].append(f"Bootstrap v{ver} (Obsoleto)")
+                    code_audit["outdated_js_libraries"].append(f"Bootstrap v{ver} (Soporte vencido en 2019)")
 
-        # Contar scripts externos CDN sin sello criptográfico Subresource Integrity (integrity="sha...")
         full_script_tags = re.findall(r'<script[^>]+src=["\']https?://[^"\']+["\'][^>]*>', home_html, re.I)
         for tag in full_script_tags:
             if domain.lower() not in tag.lower() and "integrity=" not in tag.lower():
                 code_audit["external_scripts_without_sri_count"] += 1
 
-        # 4. Cazador de claves API o secretos olvidados en el código HTML/JS público
         secret_patterns = [
             (r'AIza[0-9A-Za-z\-_]{35}', "Google Cloud / Maps API Key expuesta en HTML"),
             (r'AKIA[0-9A-Z]{16}', "AWS Access Key ID expuesta en HTML"),
@@ -222,15 +332,12 @@ async def audit_web_code_and_surface(
             if re.search(pat, home_html):
                 code_audit["exposed_frontend_secrets"].append(desc)
 
-        # 5. Revisión de formularios inseguros (action hacia http:// o sin protección evidente)
         if re.search(r'<form[^>]+action=["\']http://', home_html, re.I):
             code_audit["insecure_forms_detected"] = True
 
-        # 6. Detección de iframes ocultos (síntoma clásico de inyección Webshell / php2shell)
         if re.search(r'<iframe[^>]+(?:display\s*:\s*none|visibility\s*:\s*hidden|width=["\']?0|height=["\']?0)', home_html, re.I):
             code_audit["suspicious_hidden_iframes"] = True
 
-        # 7. Inspector de Privacidad Web Ley N° 21.719 (Rastreadores vs Aviso de Privacidad)
         trackers_map = {
             "connect.facebook.net": "Meta Pixel (Facebook)",
             "fbevents.js": "Meta Pixel (Facebook)",
@@ -254,7 +361,6 @@ async def audit_web_code_and_surface(
         if detected_trackers and not code_audit["privacy_ley21719"]["has_privacy_or_cookie_notice"]:
             code_audit["privacy_ley21719"]["compliance_warning"] = True
 
-    # 8. Sondeo concurrente ultra-rápido de puertas traseras PHP/CMS y archivos críticos olvidados
     sensitive_probes = [
         ("/.env", "ENV_FILE", ["db_password", "app_key", "aws_", "mail_host", "secret"]),
         ("/.git/config", "GIT_REPO", ["[core]", "repositoryformatversion"]),
@@ -268,7 +374,6 @@ async def audit_web_code_and_surface(
         try:
             r = await client.get(f"https://{domain}{path}", timeout=2.0)
             body_sample = (r.text[:1500] if r.text else "").lower()
-            # Xmlrpc suele responder 405 Method Not Allowed o 200 OK con el mensaje exacto
             if ptype == "WP_XMLRPC" and r.status_code in [200, 405] and any(t in body_sample for t in tokens):
                 code_audit["php_cgi_surface_exposed"] = True
                 code_audit["cms_backdoors_exposed"].append("/xmlrpc.php (Puerta abierta para fuerza bruta y abuso PHP)")
@@ -341,7 +446,6 @@ async def get_http_security_posture(domain: str) -> Dict[str, Any]:
         except Exception as e:
             result["error"] = str(e)
 
-        # Ejecutar Favicon Hash, Auditoría de Exposición y Auditoría de Código Web en paralelo
         async def fetch_favicon():
             try:
                 fav_resp = await client.get(favicon_url, timeout=2.0)

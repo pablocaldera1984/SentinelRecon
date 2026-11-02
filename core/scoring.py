@@ -5,7 +5,7 @@ from typing import Dict, Any, Optional
 
 
 def calculate_email_penalty(dns_data: Dict[str, Any]) -> float:
-    """Calcula la penalización por higiene de correo, anti-spoofing y gobernanza DNS (P_email: 0 a 100)."""
+    """Calcula la penalización por higiene de correo, anti-spoofing, listas negras RBL y gobernanza DNS (P_email: 0 a 100)."""
     penalty = 0.0
 
     # 1. SPF
@@ -36,16 +36,27 @@ def calculate_email_penalty(dns_data: Dict[str, Any]) -> float:
     if not dkim.get("has_dkim", False):
         penalty += 15.0
 
-    # 4. Gobernanza DNS Avanzada (CAA & MTA-STS)
+    # 4. Gobernanza DNS Avanzada (CAA, MTA-STS & DNSSEC)
     gov = dns_data.get("governance", {})
-    if gov and not gov.get("caa_configured", False):
-        penalty += 5.0
+    if gov:
+        if not gov.get("caa_configured", False):
+            penalty += 5.0
+        if not gov.get("mta_sts_configured", False):
+            penalty += 5.0
+        if not gov.get("dnssec_enabled", False):
+            penalty += 5.0
+
+    # 5. Listas Negras Internacionales Anti-Spam (RBL / DNSBL)
+    rbl = dns_data.get("rbl_blacklist", {})
+    listed_count = rbl.get("listed_count", 0)
+    if listed_count > 0:
+        penalty += min(60.0, listed_count * 35.0)
 
     return min(100.0, penalty)
 
 
 def calculate_crypto_penalty(web_data: Dict[str, Any]) -> float:
-    """Calcula la penalización por postura SSL/TLS, PQC, encabezados HTTP y exposición web (P_crypto: 0 a 100)."""
+    """Calcula la penalización por postura SSL/TLS, PQC, encabezados HTTP, exposición de APIs y código web (P_crypto: 0 a 100)."""
     penalty = 0.0
 
     ssl_cert = web_data.get("ssl_certificate", {})
@@ -76,11 +87,33 @@ def calculate_crypto_penalty(web_data: Dict[str, Any]) -> float:
     if exposure.get("sourcemaps_referenced", False):
         penalty += 10.0
 
+    # 6. Auditoría de Estructura y Seguridad de Código Web (v2.2: PHP/CGI, JS, Respaldos, Secretos, Privacidad)
+    code_audit = web_data.get("code_security_audit", {}) or headers.get("code_security_audit", {})
+    if code_audit:
+        if code_audit.get("exposed_backup_or_env_files"):
+            penalty += 45.0
+        if code_audit.get("exposed_frontend_secrets"):
+            penalty += 40.0
+        if code_audit.get("suspicious_hidden_iframes", False):
+            penalty += 50.0
+        if code_audit.get("cms_backdoors_exposed"):
+            penalty += 20.0
+        if code_audit.get("php_cgi_surface_exposed", False):
+            penalty += 15.0
+        if code_audit.get("outdated_js_libraries"):
+            penalty += 15.0
+        if code_audit.get("insecure_forms_detected", False):
+            penalty += 15.0
+        if code_audit.get("insecure_cookies_detected", False):
+            penalty += 10.0
+        if code_audit.get("privacy_ley21719", {}).get("compliance_warning", False):
+            penalty += 10.0
+
     return min(100.0, penalty)
 
 
 def calculate_ports_penalty(port_data: Dict[str, Any]) -> float:
-    """Calcula la penalización por exposición de interfaces de gestión, bases de datos y Shadow AI (P_puertos: 0 a 100)."""
+    """Calcula la penalización por exposición de interfaces de gestión, bases de datos, Shadow AI y Shodan CVEs (P_puertos: 0 a 100)."""
     penalty = 0.0
     open_ports = [p.get("port") for p in port_data.get("open_ports", [])]
 
@@ -89,6 +122,7 @@ def calculate_ports_penalty(port_data: Dict[str, Any]) -> float:
         445: 50.0,    # SMB expuesto (Windows)
         135: 40.0,    # RPC expuesto (Windows)
         11434: 45.0,  # Shadow AI (Ollama sin auth)
+        8000: 35.0,   # Shadow AI (vLLM / API LLM sin auth)
         6333: 40.0,   # Vector DB Qdrant (Shadow AI)
         6379: 45.0,   # Redis expuesto
         27017: 45.0,  # MongoDB expuesto
@@ -102,6 +136,11 @@ def calculate_ports_penalty(port_data: Dict[str, Any]) -> float:
     for port, weight in critical_weights.items():
         if port in open_ports:
             penalty += weight
+
+    # Penalización adicional si Shodan InternetDB reporta vulnerabilidades (CVEs) activas en la IP
+    shodan_vulns = port_data.get("passive_internetdb_intel", {}).get("vulns", [])
+    if shodan_vulns:
+        penalty += min(45.0, len(shodan_vulns) * 10.0)
 
     return min(100.0, penalty)
 
@@ -162,7 +201,7 @@ def calculate_drps_extended_penalty(
         if p0_count > 0:
             p_kev = min(100.0, (p0_count * 35.0) + (ransom_count * 25.0))
 
-    # 5. Cloud Storage Leaks (AWS/GCP/Azure)
+    # 5. Cloud Storage Leaks (AWS/GCP/Azure/Firebase)
     if cloud_leak_data:
         open_buckets = cloud_leak_data.get("public_leaking_buckets_count", 0)
         if open_buckets > 0:
@@ -187,7 +226,7 @@ def evaluate_security_posture(
     kev_epss_data: Optional[Dict[str, Any]] = None,
     cloud_leak_data: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
-    """Calcula el Puntaje Consolidado (R_total) y Calificación S_posture integrando los 7 pilares."""
+    """Calcula el Puntaje Consolidado (R_total) y Calificación S_posture integrando todos los pilares v2.2."""
     p_email = calculate_email_penalty(dns_data)
     p_crypto = calculate_crypto_penalty(web_data)
     p_ports = calculate_ports_penalty(port_data)
@@ -228,12 +267,16 @@ def evaluate_security_posture(
     regulatory_notes = []
     if p_ports >= 40.0 or ext["kev_epss_penalty"] >= 35.0:
         regulatory_notes.append(
-            "Exposición de servicios críticos con vulnerabilidades activas (CISA KEV / EPSS). "
-            "Bajo Ley 21.663 (Art. 8 y 9), exige gestión de parches documentada y reporte al CSIRT en 3 horas ante incidentes."
+            "Exposición de servicios críticos con vulnerabilidades activas (CISA KEV / EPSS / Shodan). "
+            "Bajo Ley 21.663 (Art. 8 y 9), exige gestión de parches documentada y protocolo de respuesta ante incidentes."
         )
     if p_email >= 40.0 or ext["brand_penalty"] >= 35.0:
         regulatory_notes.append(
-            "Riesgo elevado de suplantación de marca y fraude financiero BEC (dominios gemelos con MX activo o DMARC débil)."
+            "Riesgo elevado de suplantación de correo corporativo y desvío de pagos (dominios similares con correo activo o falta de bloqueo DMARC)."
+        )
+    if dns_data.get("rbl_blacklist", {}).get("is_blacklisted", False):
+        regulatory_notes.append(
+            "Reputación de Correo Comprometida: La IP figura en listas negras internacionales de Spam (RBL), afectando la entrega de correos comerciales."
         )
     if ext["identity_penalty"] > 0:
         regulatory_notes.append(
@@ -241,19 +284,32 @@ def evaluate_security_posture(
         )
     if ext["cloud_leak_penalty"] > 0:
         regulatory_notes.append(
-            "Almacenamiento Cloud público detectado: riesgo dual ante ANCI (Ley 21.663) y Protección de Datos Personales (Ley 21.719)."
+            "Almacenamiento Cloud público detectado: riesgo directo bajo Ley de Ciberseguridad (21.663) y Protección de Datos Personales (21.719)."
+        )
+
+    code_audit = web_data.get("code_security_audit", {}) or web_data.get("http_headers", {}).get("code_security_audit", {})
+    if code_audit.get("php_cgi_surface_exposed") or code_audit.get("cms_backdoors_exposed") or code_audit.get("exposed_backup_or_env_files"):
+        regulatory_notes.append(
+            "Seguridad de Código Web: Se detectó exposición de superficie PHP/CMS o archivos de configuración públicos vulnerables a inyección de comandos."
+        )
+    if code_audit.get("privacy_ley21719", {}).get("compliance_warning", False):
+        regulatory_notes.append(
+            "Privacidad Web (Ley N° 21.719): El sitio utiliza rastreadores de terceros sin un aviso o política de privacidad explícita visible en portada."
         )
 
     sovereignty = dns_data.get("asn_sovereignty", {})
     if sovereignty.get("country_code") and not sovereignty.get("hosted_in_chile"):
         regulatory_notes.append(
             f"Jurisdicción de Alojamiento: Infraestructura web alojada fuera de Chile ({sovereignty.get('country')} - {sovereignty.get('isp_org')}). "
-            "Exige validar cláusulas de transferencia internacional de datos bajo la Ley N° 21.719."
+            "Exige resguardar cláusulas de transferencia internacional de datos bajo la Ley N° 21.719."
         )
 
     global_fingerprints = {
         "score": s_posture,
         "grade": grade,
+        "rbl_listed": dns_data.get("rbl_blacklist", {}).get("listed_count", 0),
+        "code_env_exposed": len(code_audit.get("exposed_backup_or_env_files", [])),
+        "code_backdoors": len(code_audit.get("cms_backdoors_exposed", [])),
         "id_fp": (identity_data or {}).get("drift_fingerprint", ""),
         "typo_fp": (typosquatting_data or {}).get("drift_fingerprint", ""),
         "shadow_fp": (shadow_dns_data or {}).get("drift_fingerprint", ""),
