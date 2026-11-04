@@ -8,7 +8,6 @@ def calculate_email_penalty(dns_data: Dict[str, Any]) -> float:
     """Calcula la penalización por higiene de correo, anti-spoofing, listas negras RBL y gobernanza DNS (P_email: 0 a 100)."""
     penalty = 0.0
 
-    # 1. SPF
     spf = dns_data.get("spf", {})
     spf_status = spf.get("status")
     if spf_status in ["NOT_CONFIGURED", "PERMISSIVE"]:
@@ -19,7 +18,6 @@ def calculate_email_penalty(dns_data: Dict[str, Any]) -> float:
     if spf.get("dns_lookup_count", 0) > 10:
         penalty += 25.0
 
-    # 2. DMARC
     dmarc = dns_data.get("dmarc", {})
     dmarc_status = dmarc.get("status")
     dmarc_policy = dmarc.get("policy", "none")
@@ -31,12 +29,10 @@ def calculate_email_penalty(dns_data: Dict[str, Any]) -> float:
     elif dmarc_policy == "quarantine":
         penalty += 10.0
 
-    # 3. DKIM
     dkim = dns_data.get("dkim", {})
     if not dkim.get("has_dkim", False):
         penalty += 15.0
 
-    # 4. Gobernanza DNS Avanzada (CAA, MTA-STS & DNSSEC)
     gov = dns_data.get("governance", {})
     if gov:
         if not gov.get("caa_configured", False):
@@ -46,7 +42,6 @@ def calculate_email_penalty(dns_data: Dict[str, Any]) -> float:
         if not gov.get("dnssec_enabled", False):
             penalty += 5.0
 
-    # 5. Listas Negras Internacionales Anti-Spam (RBL / DNSBL)
     rbl = dns_data.get("rbl_blacklist", {})
     listed_count = rbl.get("listed_count", 0)
     if listed_count > 0:
@@ -56,7 +51,7 @@ def calculate_email_penalty(dns_data: Dict[str, Any]) -> float:
 
 
 def calculate_crypto_penalty(web_data: Dict[str, Any]) -> float:
-    """Calcula la penalización por postura SSL/TLS, PQC, encabezados HTTP, exposición de APIs y código web (P_crypto: 0 a 100)."""
+    """Calcula la penalización por postura SSL/TLS, PQC, encabezados HTTP, exposición de APIs, código web y pagos (P_crypto: 0 a 100)."""
     penalty = 0.0
 
     ssl_cert = web_data.get("ssl_certificate", {})
@@ -87,7 +82,6 @@ def calculate_crypto_penalty(web_data: Dict[str, Any]) -> float:
     if exposure.get("sourcemaps_referenced", False):
         penalty += 10.0
 
-    # 6. Auditoría de Estructura y Seguridad de Código Web (v2.2: PHP/CGI, JS, Respaldos, Secretos, Privacidad)
     code_audit = web_data.get("code_security_audit", {}) or headers.get("code_security_audit", {})
     if code_audit:
         if code_audit.get("exposed_backup_or_env_files"):
@@ -108,6 +102,10 @@ def calculate_crypto_penalty(web_data: Dict[str, Any]) -> float:
             penalty += 10.0
         if code_audit.get("privacy_ley21719", {}).get("compliance_warning", False):
             penalty += 10.0
+        if code_audit.get("ecommerce_magecart_risk", {}).get("magecart_skimming_risk", False):
+            penalty += 20.0
+        if code_audit.get("public_documents_metadata", {}).get("exposed_authors_or_users"):
+            penalty += 10.0
 
     return min(100.0, penalty)
 
@@ -118,26 +116,25 @@ def calculate_ports_penalty(port_data: Dict[str, Any]) -> float:
     open_ports = [p.get("port") for p in port_data.get("open_ports", [])]
 
     critical_weights = {
-        3389: 50.0,   # RDP expuesto (Windows)
-        445: 50.0,    # SMB expuesto (Windows)
-        135: 40.0,    # RPC expuesto (Windows)
-        11434: 45.0,  # Shadow AI (Ollama sin auth)
-        8000: 35.0,   # Shadow AI (vLLM / API LLM sin auth)
-        6333: 40.0,   # Vector DB Qdrant (Shadow AI)
-        6379: 45.0,   # Redis expuesto
-        27017: 45.0,  # MongoDB expuesto
-        3306: 35.0,   # MySQL expuesto
-        5432: 35.0,   # PostgreSQL expuesto
-        21: 25.0,     # FTP texto plano
-        22: 25.0,     # SSH expuesto
-        8080: 15.0    # Proxy/Admin web alternativo
+        3389: 50.0,
+        445: 50.0,
+        135: 40.0,
+        11434: 45.0,
+        8000: 35.0,
+        6333: 40.0,
+        6379: 45.0,
+        27017: 45.0,
+        3306: 35.0,
+        5432: 35.0,
+        21: 25.0,
+        22: 25.0,
+        8080: 15.0
     }
 
     for port, weight in critical_weights.items():
         if port in open_ports:
             penalty += weight
 
-    # Penalización adicional si Shodan InternetDB reporta vulnerabilidades (CVEs) activas en la IP
     shodan_vulns = port_data.get("passive_internetdb_intel", {}).get("vulns", [])
     if shodan_vulns:
         penalty += min(45.0, len(shodan_vulns) * 10.0)
@@ -161,16 +158,17 @@ def calculate_drps_extended_penalty(
     p_kev = 0.0
     p_cloud = 0.0
 
-    # 1. Infostealers (Hudson Rock)
     if identity_data:
         emp = identity_data.get("compromised_employees", 0)
         usr = identity_data.get("compromised_users", 0)
+        gh_leaks = identity_data.get("github_code_leaks", {}).get("github_leaks_count", 0)
         if emp > 0:
             p_identity = min(100.0, 50.0 + (emp * 5.0))
         elif usr > 0:
             p_identity = min(60.0, 20.0 + (usr * 0.5))
+        if gh_leaks > 0:
+            p_identity = min(100.0, p_identity + 25.0)
 
-    # 2. Typosquatting & BEC
     if typosquatting_data:
         mx_clones = typosquatting_data.get("mail_ready_clones_count", 0)
         web_clones = typosquatting_data.get("active_lookalikes_count", 0)
@@ -182,26 +180,26 @@ def calculate_drps_extended_penalty(
         elif web_clones > 0:
             p_brand = min(60.0, web_clones * 15.0)
 
-    # 3. Shadow DNS, Subdomain Takeover & NIC Chile
     if shadow_dns_data:
         takeovers = shadow_dns_data.get("takeover_vulnerable_count", 0)
+        admin_portals = shadow_dns_data.get("exposed_admin_portals_count", 0)
         days_exp = shadow_dns_data.get("domain_registration_rdap", {}).get("days_until_expiration")
         if takeovers > 0:
             p_shadow += min(100.0, takeovers * 60.0)
+        if admin_portals > 0:
+            p_shadow += min(45.0, admin_portals * 15.0)
         if days_exp is not None and days_exp < 15:
             p_shadow += 40.0
         elif days_exp is not None and days_exp < 30:
             p_shadow += 15.0
         p_shadow = min(100.0, p_shadow)
 
-    # 4. Priorizador CISA KEV + FIRST EPSS
     if kev_epss_data:
         p0_count = kev_epss_data.get("same_day_p0_incidents_count", 0)
         ransom_count = kev_epss_data.get("ransomware_active_vectors_count", 0)
         if p0_count > 0:
             p_kev = min(100.0, (p0_count * 35.0) + (ransom_count * 25.0))
 
-    # 5. Cloud Storage Leaks (AWS/GCP/Azure/Firebase)
     if cloud_leak_data:
         open_buckets = cloud_leak_data.get("public_leaking_buckets_count", 0)
         if open_buckets > 0:
@@ -280,17 +278,21 @@ def evaluate_security_posture(
         )
     if ext["identity_penalty"] > 0:
         regulatory_notes.append(
-            "Detección de credenciales o sesiones comprometidas por malware Infostealer en equipos externos/usuarios (Ley 21.663 Art. 8)."
+            "Detección de credenciales o código expuesto en fuentes externas (Infostealers / Combolists / GitHub) bajo el marco de debida diligencia Ley 21.663 Art. 8."
         )
     if ext["cloud_leak_penalty"] > 0:
         regulatory_notes.append(
-            "Almacenamiento Cloud público detectado: riesgo directo bajo Ley de Ciberseguridad (21.663) y Protección de Datos Personales (21.719)."
+            "Almacenamiento Cloud público detectado: riesgo directo bajo Ley de Ciberseguridad (21.663) y Protección de Datos Personales (Ley 21.719)."
         )
 
     code_audit = web_data.get("code_security_audit", {}) or web_data.get("http_headers", {}).get("code_security_audit", {})
     if code_audit.get("php_cgi_surface_exposed") or code_audit.get("cms_backdoors_exposed") or code_audit.get("exposed_backup_or_env_files"):
         regulatory_notes.append(
             "Seguridad de Código Web: Se detectó exposición de superficie PHP/CMS o archivos de configuración públicos vulnerables a inyección de comandos."
+        )
+    if code_audit.get("ecommerce_magecart_risk", {}).get("magecart_skimming_risk", False):
+        regulatory_notes.append(
+            "Seguridad en Medios de Pago Web: Pasarela o formulario transaccional expuesto a scripts externos sin sello de integridad (Riesgo Web Skimming / Magecart)."
         )
     if code_audit.get("privacy_ley21719", {}).get("compliance_warning", False):
         regulatory_notes.append(

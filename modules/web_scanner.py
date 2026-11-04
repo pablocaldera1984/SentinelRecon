@@ -7,6 +7,7 @@ import re
 import httpx
 import mmh3
 import base64
+from urllib.parse import urljoin
 from typing import Dict, Any, List
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
@@ -46,17 +47,16 @@ def get_ssl_certificate_info(domain: str, port: int = 443) -> Dict[str, Any]:
                 if result["tls_version"] in ["TLSv1", "TLSv1.1", "SSLv3"]:
                     result["deprecated_tls"] = True
 
-                # Preparación base para algoritmos híbridos / TLS 1.3 moderno
                 if result["tls_version"] == "TLSv1.3":
                     result["pqc_ready_transport"] = True
 
                 der_cert = ssock.getpeercert(binary_form=True)
                 if not der_cert:
                     return result
-                
+
                 result["has_ssl"] = True
                 cert = x509.load_der_x509_certificate(der_cert, default_backend())
-                
+
                 expiry_date = cert.not_valid_after_utc.replace(tzinfo=None)
                 remaining_days = (expiry_date - datetime.datetime.utcnow()).days
                 result["days_until_expiry"] = remaining_days
@@ -93,7 +93,6 @@ async def audit_web_exposure_and_governance(client: httpx.AsyncClient, domain: s
         "frontend_tech_hints": []
     }
 
-    # 1. Detectar referencias a SourceMaps o frameworks en el HTML principal
     if home_html:
         if ".js.map" in home_html or "sourceMappingURL" in home_html:
             exposure["sourcemaps_referenced"] = True
@@ -104,7 +103,6 @@ async def audit_web_exposure_and_governance(client: httpx.AsyncClient, domain: s
         if "firebase" in home_html.lower():
             exposure["frontend_tech_hints"].append("Firebase SDK")
 
-    # 2. Sondeo ligero de rutas estándar con validación estricta de contenido (anti-falsos positivos SPA)
     probes = [
         ("/.well-known/security.txt", "SECURITY_TXT", "Contact:"),
         ("/swagger.json", "SWAGGER_API", '"swagger"'),
@@ -242,6 +240,58 @@ def detect_eol_software(server_header: str, x_powered_by: str, home_html: str) -
     return eol_findings
 
 
+async def probe_public_document_metadata(client: httpx.AsyncClient, domain: str, home_html: str) -> Dict[str, Any]:
+    """
+    Escáner FOCA en la Nube: Busca enlaces a documentos públicos (.pdf) en el sitio web,
+    descarga solo los primeros 64 KB en memoria y extrae metadatos internos (/Author, /Creator, /Producer).
+    """
+    meta_result = {
+        "documents_analyzed_count": 0,
+        "exposed_authors_or_users": [],
+        "exposed_internal_software": []
+    }
+    if not home_html:
+        return meta_result
+
+    pdf_links = re.findall(r'href=["\']([^"\']+\.pdf(?:\?[^"\']*)?)["\']', home_html, re.I)
+    if not pdf_links:
+        return meta_result
+
+    unique_urls = []
+    base_url = f"https://{domain}"
+    for link in pdf_links:
+        full_u = urljoin(base_url, link.strip())
+        if full_u not in unique_urls:
+            unique_urls.append(full_u)
+
+    authors = set()
+    softwares = set()
+
+    for pdf_url in unique_urls[:2]:
+        try:
+            r = await client.get(pdf_url, headers={"Range": "bytes=0-65535"}, timeout=2.5)
+            if r.status_code in [200, 206] and r.content:
+                meta_result["documents_analyzed_count"] += 1
+                raw_text = r.content.decode("latin-1", errors="ignore")
+
+                for m in re.findall(r'/Author\s*\(([^)]{2,60})\)', raw_text):
+                    clean_a = re.sub(r'[\x00-\x1f]', '', m).strip()
+                    if clean_a and clean_a.lower() not in ["admin", "user", "usuario", "unknown"]:
+                        authors.add(clean_a)
+
+                for tag in ["Creator", "Producer"]:
+                    for m in re.findall(rf'/{tag}\s*\(([^)]{{3,80}})\)', raw_text):
+                        clean_s = re.sub(r'[\x00-\x1f]', '', m).strip()
+                        if clean_s:
+                            softwares.add(clean_s)
+        except Exception:
+            pass
+
+    meta_result["exposed_authors_or_users"] = list(authors)[:5]
+    meta_result["exposed_internal_software"] = list(softwares)[:5]
+    return meta_result
+
+
 async def audit_web_code_and_surface(
     client: httpx.AsyncClient,
     domain: str,
@@ -250,7 +300,8 @@ async def audit_web_code_and_surface(
     set_cookie_list: List[str]
 ) -> Dict[str, Any]:
     """
-    Inspecciona pasivamente el código HTML/JS entregado por el sitio web, fechas de vencimiento EOL y rutas críticas.
+    Inspecciona pasivamente el código HTML/JS entregado por el sitio web, fechas de vencimiento EOL,
+    pasarelas de pago (Anti-Magecart), metadatos FOCA en PDFs, enlaces WhatsApp y rutas críticas.
     """
     eol_list = detect_eol_software(
         resp_headers.get("server", ""),
@@ -273,6 +324,16 @@ async def audit_web_code_and_surface(
         "insecure_forms_detected": False,
         "insecure_cookies_detected": False,
         "suspicious_hidden_iframes": False,
+        "ecommerce_magecart_risk": {
+            "payment_gateways_detected": [],
+            "magecart_skimming_risk": False,
+            "risk_explanation": None
+        },
+        "whatsapp_impersonation_surface": {
+            "exposed_numbers": [],
+            "has_whatsapp_widget": False
+        },
+        "public_documents_metadata": {},
         "privacy_ley21719": {
             "third_party_trackers": [],
             "has_privacy_or_cookie_notice": False,
@@ -334,6 +395,38 @@ async def audit_web_code_and_surface(
         for tag in full_script_tags:
             if domain.lower() not in tag.lower() and "integrity=" not in tag.lower():
                 code_audit["external_scripts_without_sri_count"] += 1
+
+        # 4. Auditor de Pasarelas de Pago y Riesgo E-Commerce (Anti-Magecart / Web Skimming)
+        payment_map = {
+            "webpay": "Webpay / Transbank",
+            "transbank": "Transbank",
+            "flow.cl": "Flow Pagos",
+            "khipu": "Khipu",
+            "mercadopago": "MercadoPago",
+            "woocommerce": "Carrito WooCommerce",
+            "shopify": "Carrito Shopify",
+            "checkout": "Formulario de Pago / Checkout"
+        }
+        detected_gateways = set()
+        for kw, label in payment_map.items():
+            if kw in html_low:
+                detected_gateways.add(label)
+        code_audit["ecommerce_magecart_risk"]["payment_gateways_detected"] = list(detected_gateways)
+
+        has_csp = "content-security-policy" in resp_headers
+        if detected_gateways and (code_audit["external_scripts_without_sri_count"] > 0 or not has_csp):
+            code_audit["ecommerce_magecart_risk"]["magecart_skimming_risk"] = True
+            code_audit["ecommerce_magecart_risk"]["risk_explanation"] = (
+                f"El sitio integra pagos o transacciones ({', '.join(list(detected_gateways)[:2])}) pero carga "
+                f"{code_audit['external_scripts_without_sri_count']} scripts externos sin sello de integridad (SRI) ni bloqueo CSP, "
+                "exponiendo a los clientes al robo de datos de tarjetas en pantalla (ataque Web Skimming / Magecart)."
+            )
+
+        # 5. Detector de Números de WhatsApp Corporativo Expuestos
+        wa_matches = re.findall(r'(?:wa\.me/|api\.whatsapp\.com/send\?phone=)(\+?\d{8,15})', home_html, re.I)
+        if wa_matches:
+            code_audit["whatsapp_impersonation_surface"]["has_whatsapp_widget"] = True
+            code_audit["whatsapp_impersonation_surface"]["exposed_numbers"] = list(set(wa_matches))[:5]
 
         secret_patterns = [
             (r'AIza[0-9A-Za-z\-_]{35}', "Google Cloud / Maps API Key expuesta en HTML"),
@@ -401,7 +494,12 @@ async def audit_web_code_and_surface(
         except Exception:
             pass
 
-    await asyncio.gather(*(probe_sensitive_path(p, pt, tk) for p, pt, tk in sensitive_probes))
+    doc_meta_task = probe_public_document_metadata(client, domain, home_html)
+    probes_task = asyncio.gather(*(probe_sensitive_path(p, pt, tk) for p, pt, tk in sensitive_probes))
+
+    doc_meta, _ = await asyncio.gather(doc_meta_task, probes_task)
+    code_audit["public_documents_metadata"] = doc_meta
+
     return code_audit
 
 

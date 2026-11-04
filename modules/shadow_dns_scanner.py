@@ -9,7 +9,6 @@ import httpx
 import dns.asyncresolver
 from typing import Dict, Any, List, Set
 
-# Huellas de proveedores Cloud susceptibles a Subdomain Takeover (can-i-take-over-xyz)
 TAKEOVER_FINGERPRINTS = {
     "github.io": {"service": "GitHub Pages", "body_match": "There isn't a GitHub Pages site here"},
     "amazonaws.com": {"service": "AWS S3 / CloudFront", "body_match": "NoSuchBucket"},
@@ -25,12 +24,27 @@ TAKEOVER_FINGERPRINTS = {
     "vercel.app": {"service": "Vercel", "body_match": "DEPLOYMENT_NOT_FOUND"}
 }
 
-# Subdominios corporativos críticos que siempre se auditan además de los CT Logs
 COMMON_SHADOW_SUBS = [
     "www", "mail", "webmail", "vpn", "remote", "portal", "admin", "intranet",
     "api", "dev", "test", "staging", "beta", "app", "cloud", "autodiscover",
     "cpanel", "webdisk", "ns1", "ns2", "smtp", "pop", "imap", "erp", "pagos"
 ]
+
+# Clasificador de subdominios de alto riesgo (Ambientes olvidados de ex-proveedores o paneles administrativos)
+HIGH_RISK_SUBDOMAIN_PREFIXES = {
+    "dev": "Ambiente de Desarrollo / Pruebas de Programadores (dev)",
+    "test": "Ambiente de Pruebas Olvidado (test)",
+    "staging": "Servidor Pre-Producción / Agencia Externa (staging)",
+    "beta": "Versión Beta sin Blindaje (beta)",
+    "cpanel": "Panel de Control Maestro del Hosting (cpanel)",
+    "webmail": "Acceso Directo a Casillas de Correo por Navegador (webmail)",
+    "admin": "Consola de Administración Expuesta (admin)",
+    "intranet": "Portal Interno Corporativo Expuesto a Internet (intranet)",
+    "vpn": "Concentrador de Red Privada Expuesto (vpn)",
+    "remote": "Acceso Remoto de Terceros (remote)",
+    "erp": "Sistema de Gestión / Facturación Expuesto (erp)",
+    "webdisk": "Disco Remoto de Archivos del Servidor (webdisk)"
+}
 
 
 async def _fetch_ct_subdomains(domain: str, timeout: float = 7.0) -> List[str]:
@@ -43,12 +57,11 @@ async def _fetch_ct_subdomains(domain: str, timeout: float = 7.0) -> List[str]:
         subdomains.add(f"{prefix}.{domain}")
 
     headers = {
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) SentinelRecon/2.0",
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) SentinelRecon/2.2",
         "Accept": "application/json, text/plain, */*"
     }
 
     async with httpx.AsyncClient(timeout=timeout, headers=headers, follow_redirects=True) as client:
-        # Fuente 1: HackerTarget Passive DNS / Certs (Ultrarrápido)
         try:
             ht_resp = await client.get(f"https://api.hackertarget.com/hostsearch/?q={domain}")
             if ht_resp.status_code == 200 and "error" not in ht_resp.text.lower():
@@ -61,7 +74,6 @@ async def _fetch_ct_subdomains(domain: str, timeout: float = 7.0) -> List[str]:
         except Exception:
             pass
 
-        # Fuente 2: crt.sh (Certificate Transparency oficial)
         try:
             crt_resp = await client.get("https://crt.sh/", params={"q": domain, "output": "json"})
             if crt_resp.status_code == 200:
@@ -96,7 +108,6 @@ async def _check_subdomain_status(
         takeover_reason = None
         loop = asyncio.get_running_loop()
 
-        # 1. Verificar registro CNAME
         try:
             ans_cname = await resolver.resolve(subdomain, "CNAME")
             for r in ans_cname:
@@ -104,7 +115,6 @@ async def _check_subdomain_status(
         except Exception:
             pass
 
-        # 2. Verificar resolución de IP nativa del SO
         try:
             addr_info = await asyncio.wait_for(
                 loop.getaddrinfo(subdomain, None, family=socket.AF_INET),
@@ -121,7 +131,6 @@ async def _check_subdomain_status(
                         takeover_reason = f"CNAME huérfano ({cname_target}) sin resolución IP activa (NXDOMAIN)"
                         break
 
-        # 3. Validar huella HTTP si el CNAME apunta a un proveedor cloud
         if cname_target and is_alive and not takeover_risk:
             for provider_domain, fp in TAKEOVER_FINGERPRINTS.items():
                 if provider_domain in cname_target:
@@ -171,7 +180,6 @@ async def _query_nic_cl_whois_socket(domain: str, timeout: float = 4.0) -> Dict[
         ns_set = set()
         for line in text.splitlines():
             line_clean = line.strip()
-            # Ejemplo en NIC.cl: "Expiration date: 2027-04-15 14:22:10 CLST"
             if line_clean.lower().startswith("expiration date:"):
                 val = line_clean.split(":", 1)[1].strip()
                 match_date = re.search(r"(\d{4}-\d{2}-\d{2})", val)
@@ -200,7 +208,6 @@ async def _check_rdap_expiration(domain: str, resolver: dns.asyncresolver.Resolv
         "registrar_status": "unknown"
     }
 
-    # 1. Obtener Nameservers reales por consulta DNS directa (100% confiable)
     try:
         ans_ns = await resolver.resolve(domain, "NS")
         rdap_info["nameservers"] = sorted([str(r.target).rstrip(".").lower() for r in ans_ns])
@@ -209,7 +216,6 @@ async def _check_rdap_expiration(domain: str, resolver: dns.asyncresolver.Resolv
     except Exception:
         pass
 
-    # 2. Si es .cl, consultar socket oficial de NIC Chile (whois.nic.cl:43)
     if domain.endswith(".cl"):
         nic_data = await _query_nic_cl_whois_socket(domain, timeout=timeout)
         if nic_data["expiration_date"]:
@@ -223,7 +229,6 @@ async def _check_rdap_expiration(domain: str, resolver: dns.asyncresolver.Resolv
             rdap_info["nameservers"] = nic_data["nameservers"]
             rdap_info["registrar_status"] = "active"
 
-    # 3. Fallback a RDAP HTTP para dominios internacionales (.com, .net, etc.)
     if not rdap_info["expiration_date"]:
         url = f"https://rdap.org/domain/{domain}"
         headers = {"Accept": "application/rdap+json, application/json"}
@@ -251,9 +256,7 @@ async def _check_rdap_expiration(domain: str, resolver: dns.asyncresolver.Resolv
 
 async def scan_shadow_dns_and_takeover(domain: str, max_subdomains: int = 45) -> Dict[str, Any]:
     """
-    Módulo 2: Sentinel Shadow & Dangling DNS Guard.
-    Descubre subdominios sombra, evalúa riesgo de Subdomain Takeover
-    y verifica caducidad registral en NIC Chile / RDAP.
+    Módulo 2: Sentinel Shadow & Dangling DNS Guard + Detector de Accesos Huérfanos de Ex-Proveedores.
     """
     clean_domain = domain.strip().lower()
 
@@ -261,7 +264,6 @@ async def scan_shadow_dns_and_takeover(domain: str, max_subdomains: int = 45) ->
     resolver.timeout = 2.0
     resolver.lifetime = 2.0
 
-    # 1. Descubrimiento en paralelo: Subdominios + WHOIS/RDAP NIC Chile
     discovered_subs, rdap_data = await asyncio.gather(
         _fetch_ct_subdomains(clean_domain),
         _check_rdap_expiration(clean_domain, resolver)
@@ -276,16 +278,30 @@ async def scan_shadow_dns_and_takeover(domain: str, max_subdomains: int = 45) ->
     active_subdomains = [s for s in sub_results if s["is_alive"] or s["cname"]]
     dangling_takeovers = [s for s in sub_results if s["takeover_vulnerable"]]
 
+    # Detectar subdominios administrativos o ambientes de desarrollo olvidados por ex-proveedores
+    exposed_admin_or_dev_portals = []
+    for s in active_subdomains:
+        sub_name = s["subdomain"]
+        if sub_name.endswith(f".{clean_domain}"):
+            prefix = sub_name[:-len(f".{clean_domain}")].split(".")[0]
+            if prefix in HIGH_RISK_SUBDOMAIN_PREFIXES:
+                exposed_admin_or_dev_portals.append({
+                    "subdomain": sub_name,
+                    "role": HIGH_RISK_SUBDOMAIN_PREFIXES[prefix],
+                    "ips": s["ips"]
+                })
+
     status = "clean"
     days_exp = rdap_data.get("days_until_expiration")
     if len(dangling_takeovers) > 0 or (days_exp is not None and days_exp < 15):
         status = "critical"
-    elif len(active_subdomains) > 15 or (days_exp is not None and days_exp < 45):
+    elif len(active_subdomains) > 15 or len(exposed_admin_or_dev_portals) > 0 or (days_exp is not None and days_exp < 45):
         status = "warning"
 
     drift_payload = {
         "active_subs": [s["subdomain"] for s in active_subdomains],
         "takeovers": [s["subdomain"] for s in dangling_takeovers],
+        "admin_portals": [p["subdomain"] for p in exposed_admin_or_dev_portals],
         "nameservers": rdap_data["nameservers"]
     }
     drift_hash = hashlib.sha256(
@@ -300,6 +316,8 @@ async def scan_shadow_dns_and_takeover(domain: str, max_subdomains: int = 45) ->
         "active_subdomains_count": len(active_subdomains),
         "takeover_vulnerable_count": len(dangling_takeovers),
         "dangling_takeovers": dangling_takeovers,
+        "exposed_admin_or_dev_portals": exposed_admin_or_dev_portals,
+        "exposed_admin_portals_count": len(exposed_admin_or_dev_portals),
         "active_shadow_subdomains": active_subdomains[:20],
         "domain_registration_rdap": rdap_data,
         "anci_art8_inventory_ready": True,
