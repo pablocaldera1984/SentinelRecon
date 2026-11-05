@@ -8,509 +8,773 @@ HTML_TEMPLATE = """
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Reporte Ejecutivo EASM & DRPS - SentinelRecon v2.1</title>
+    <title>Diagnóstico Ejecutivo de Riesgo Digital y Seguridad Web - {{ target }}</title>
     <style>
-        @page { size: A4; margin: 10mm; }
+        @page { size: letter; margin: 8mm; }
+        * { box-sizing: border-box; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             color: #1e293b;
             background-color: #ffffff;
             margin: 0;
-            padding: 14px;
-            font-size: 11px;
-            line-height: 1.4;
+            padding: 8px;
+            font-size: 10.5px;
+            line-height: 1.38;
         }
         .avoid-cut {
             break-inside: avoid !important;
             page-break-inside: avoid !important;
         }
-        .header {
+        /* CABECERA */
+        .top-banner {
             display: flex;
             justify-content: space-between;
-            align-items: flex-start;
-            border-bottom: 2px solid #0f172a;
-            padding-bottom: 10px;
-            margin-bottom: 12px;
-        }
-        .logo-title h1 {
-            margin: 0;
-            font-size: 22px;
-            color: #0f172a;
-            letter-spacing: -0.5px;
-        }
-        .logo-title span {
-            color: #0284c7;
-            font-weight: bold;
-        }
-        .meta-box {
-            text-align: right;
-            font-size: 10px;
-            color: #64748b;
-            max-width: 48%;
-            word-break: break-word;
-        }
-        .grade-card {
-            display: flex;
-            background: #f8fafc;
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            padding: 10px 12px;
-            margin-bottom: 12px;
             align-items: center;
+            border-bottom: 2px solid #0f172a;
+            padding-bottom: 8px;
+            margin-bottom: 10px;
         }
-        .grade-badge {
-            font-size: 32px;
-            font-weight: 800;
-            width: 60px;
-            height: 60px;
-            line-height: 60px;
-            text-align: center;
-            border-radius: 8px;
-            margin-right: 14px;
-            color: #ffffff;
-            flex-shrink: 0;
-        }
-        .grade-A { background-color: #16a34a; }
-        .grade-B { background-color: #0284c7; }
-        .grade-C { background-color: #eab308; }
-        .grade-D { background-color: #f97316; }
-        .grade-F { background-color: #dc2626; }
-        .grade-info h3 {
-            margin: 0 0 3px 0;
-            font-size: 13.5px;
-            color: #0f172a;
-        }
-        .grade-info p {
-            margin: 0;
-            color: #475569;
-            font-size: 10.5px;
-        }
-        .section-title {
-            font-size: 12px;
+        .top-banner-left .eyebrow {
+            font-size: 9px;
             font-weight: 700;
+            color: #0284c7;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .top-banner-left h1 {
+            margin: 2px 0 0 0;
+            font-size: 16px;
+            font-weight: 800;
             color: #0f172a;
-            border-left: 4px solid #0284c7;
-            padding-left: 8px;
-            margin: 14px 0 8px 0;
+            letter-spacing: -0.3px;
+        }
+        .top-banner-right {
+            text-align: right;
+            background: #f8fafc;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            padding: 5px 10px;
+        }
+        .top-banner-right .label {
+            font-size: 8.5px;
+            color: #64748b;
+            font-weight: 700;
             text-transform: uppercase;
         }
-        .summary-grid {
+        .top-banner-right .domain-title {
+            font-size: 13px;
+            font-weight: 800;
+            color: #0f172a;
+        }
+        /* 5 KPIS SUPERIORES */
+        .kpi-row {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 7px;
+            margin-bottom: 9px;
+        }
+        .kpi-card {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 7px;
+            padding: 7px 8px;
+        }
+        .kpi-card .kpi-title {
+            font-size: 8.5px;
+            font-weight: 700;
+            color: #475569;
+            text-transform: uppercase;
+            margin-bottom: 3px;
+        }
+        .kpi-card .kpi-main {
+            font-size: 13.5px;
+            font-weight: 800;
+            color: #0f172a;
+            margin-bottom: 2px;
+        }
+        .kpi-card .kpi-sub {
+            font-size: 8.8px;
+            color: #475569;
+        }
+        .text-danger { color: #dc2626 !important; }
+        .text-warn { color: #d97706 !important; }
+        .text-ok { color: #16a34a !important; }
+
+        /* 3 RECUADROS DE PROPIEDAD E INFRAESTRUCTURA */
+        .infra-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
             gap: 8px;
             margin-bottom: 10px;
         }
-        .summary-card {
-            background: #f8fafc;
-            padding: 9px 10px;
-            border-radius: 6px;
-            border: 1px solid #e2e8f0;
-        }
-        .summary-card h4 {
-            margin: 0 0 4px 0;
-            color: #0f172a;
-            font-size: 10.5px;
-        }
-        .summary-card p {
-            margin: 0;
-            font-size: 9.8px;
-            color: #334155;
-        }
-        .badge-ok { background: #dcfce7; color: #166534; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 8.5px; text-transform: uppercase; }
-        .badge-warn { background: #fef3c7; color: #92400e; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 8.5px; text-transform: uppercase; }
-        .badge-crit { background: #fee2e2; color: #991b1b; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 8.5px; text-transform: uppercase; }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 10px;
-        }
-        tr {
-            break-inside: avoid !important;
-            page-break-inside: avoid !important;
-        }
-        th, td {
-            padding: 5px 7px;
-            text-align: left;
-            border-bottom: 1px solid #e2e8f0;
-            font-size: 9.8px;
-            vertical-align: top;
-        }
-        th {
-            background-color: #0f172a;
-            color: #ffffff;
-            font-weight: 600;
-        }
-        code {
-            background: #e2e8f0;
-            padding: 1.5px 4px;
-            border-radius: 4px;
-            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-            font-size: 9px;
-            color: #0f172a;
-            word-break: break-all;
-        }
-        .cmd-box {
-            background: #0f172a;
-            color: #38bdf8;
-            padding: 6px 8px;
-            border-radius: 4px;
-            font-family: monospace;
-            font-size: 8.5px;
-            display: block;
-            white-space: pre-wrap;
-            word-break: break-all;
-            line-height: 1.4;
-        }
-        .badge-provider {
-            display: inline-block;
-            background: #e0f2fe;
-            color: #0369a1;
-            padding: 3px 6px;
-            border-radius: 4px;
-            font-weight: bold;
-            font-size: 8.8px;
-        }
-        .crit-CRÍTICA, .crit-CRITICA, .crit-CRITICAL, .crit-critical { color: #dc2626; font-weight: bold; }
-        .crit-ALTA, .crit-high, .crit-warning { color: #f97316; font-weight: bold; }
-        .crit-MEDIA, .crit-medium { color: #d97706; font-weight: bold; }
-        .crit-BAJA, .crit-clean { color: #16a34a; font-weight: bold; }
-        .tprm-banner {
-            background: #eff6ff;
-            border: 1px solid #bfdbfe;
-            border-left: 4px solid #0284c7;
+        .infra-card {
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
+            border-top: 3px solid #0284c7;
+            border-radius: 7px;
             padding: 8px 10px;
-            border-radius: 6px;
-            margin-bottom: 8px;
-            font-size: 9.8px;
-            color: #1e3a8a;
         }
-        .anci-box {
-            background: #fffbeb;
-            border: 1px solid #fde68a;
-            border-left: 4px solid #d97706;
-            padding: 9px 11px;
-            border-radius: 6px;
-            margin-bottom: 10px;
-            font-size: 9.8px;
+        .infra-card h4 {
+            margin: 0 0 3px 0;
+            font-size: 9px;
+            font-weight: 800;
+            color: #0f172a;
+            text-transform: uppercase;
         }
-        .anci-box h4 {
-            margin: 0 0 4px 0;
-            color: #92400e;
+        .infra-card .infra-highlight {
             font-size: 10.5px;
+            font-weight: 700;
+            color: #0369a1;
+            margin-bottom: 3px;
         }
-        .seal-banner {
+        .infra-card p {
+            margin: 0;
+            font-size: 9px;
+            color: #475569;
+        }
+
+        /* BARRA DE LOS 9 BÁSICOS DE LA ANCI */
+        .anci-bar {
+            background: #f8fafc;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            padding: 8px 10px;
+            margin-bottom: 11px;
+        }
+        .anci-bar-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            background: #f0f9ff;
-            border: 1px solid #bae6fd;
-            padding: 8px 11px;
-            border-radius: 6px;
-            margin-top: 10px;
-            font-size: 9.8px;
+            margin-bottom: 7px;
+            border-bottom: 1px solid #e2e8f0;
+            padding-bottom: 4px;
         }
-        .footer-cta {
-            background: #0f172a;
-            color: #ffffff;
-            padding: 10px;
-            border-radius: 8px;
-            margin-top: 12px;
+        .anci-bar-title {
+            font-size: 9.8px;
+            font-weight: 800;
+            color: #0f172a;
+            text-transform: uppercase;
+        }
+        .anci-bar-legend {
+            font-size: 8.5px;
+            color: #475569;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        .legend-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 3px;
+            vertical-align: middle;
+        }
+        .anci-circles-grid {
+            display: grid;
+            grid-template-columns: repeat(9, 1fr);
+            gap: 4px;
             text-align: center;
         }
-        .footer-cta h3 {
-            margin: 0 0 3px 0;
-            color: #38bdf8;
-            font-size: 12.5px;
+        .anci-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 3px 2px;
         }
-        .footer-cta p {
+        .anci-circle {
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10.5px;
+            font-weight: 800;
+            margin-bottom: 3px;
+        }
+        .circle-VERDE {
+            background-color: #16a34a;
+            color: #ffffff;
+            border: 2px solid #15803d;
+        }
+        .circle-NARANJA {
+            background-color: #f97316;
+            color: #ffffff;
+            border: 2px solid #c2410c;
+        }
+        .circle-ROJO {
+            background-color: #dc2626;
+            color: #ffffff;
+            border: 2px solid #b91c1c;
+        }
+        .circle-GRIS {
+            background-color: #f1f5f9;
+            color: #64748b;
+            border: 1.5px dashed #94a3b8;
+        }
+        .anci-name {
+            font-size: 8px;
+            font-weight: 700;
+            color: #1e293b;
+            line-height: 1.15;
+            margin-bottom: 1px;
+        }
+        .anci-scope {
+            font-size: 7.2px;
+            color: #64748b;
+        }
+
+        /* TÍTULOS DE SECCIÓN */
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #0f172a;
+            color: #ffffff;
+            padding: 6px 10px;
+            border-radius: 6px;
+            margin: 10px 0 8px 0;
+        }
+        .section-header h2 {
             margin: 0;
-            font-size: 9.5px;
-            color: #cbd5e1;
+            font-size: 11px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+        .section-header span {
+            font-size: 8.8px;
+            color: #38bdf8;
+            font-weight: 700;
+        }
+
+        /* RESUMEN INTEGRADO EN LA RADIOGRAFÍA */
+        .integrated-impact-banner {
+            background: #f8fafc;
+            border: 1px solid #cbd5e1;
+            border-left: 4px solid #0284c7;
+            border-radius: 6px;
+            padding: 7px 10px;
+            margin-bottom: 8px;
+            font-size: 9.4px;
+            color: #334155;
+        }
+        .integrated-impact-banner strong {
+            color: #0f172a;
+        }
+
+        /* SEMÁFORO DE 14 PUNTOS */
+        .semaforo-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-bottom: 10px;
+        }
+        .point-card {
+            width: 100%;
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 7px 9px;
+        }
+        .point-card-crit { border-left: 3.5px solid #dc2626; }
+        .point-card-warn { border-left: 3.5px solid #f59e0b; }
+        .point-card-ok { border-left: 3.5px solid #16a34a; }
+        .point-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 3px;
+        }
+        .point-title {
+            font-size: 9.6px;
+            font-weight: 800;
+            color: #0f172a;
+        }
+        .pill {
+            padding: 1.5px 6px;
+            border-radius: 10px;
+            font-size: 7.8px;
+            font-weight: 800;
+            text-transform: uppercase;
+            flex-shrink: 0;
+        }
+        .pill-PELIGRO { background: #fee2e2; color: #991b1b; }
+        .pill-ATENCIÓN { background: #fef3c7; color: #92400e; }
+        .pill-BIEN { background: #dcfce7; color: #166534; }
+        .point-body {
+            font-size: 8.9px;
+            color: #334155;
+            margin: 0;
+        }
+        .sub-alert {
+            margin-top: 4px;
+            padding: 4px 6px;
+            border-radius: 4px;
+            font-size: 8.3px;
+            background: #fff1f2;
+            color: #881337;
+            border: 1px solid #fecdd3;
+        }
+        .sub-warn {
+            margin-top: 4px;
+            padding: 4px 6px;
+            border-radius: 4px;
+            font-size: 8.3px;
+            background: #fffbeb;
+            color: #78350f;
+            border: 1px solid #fde68a;
+        }
+
+        /* PLAN DE ACCIÓN SIN FONDO NEGRO */
+        .action-card {
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
+            border-radius: 7px;
+            padding: 8px 10px;
+            margin-bottom: 7px;
+        }
+        .action-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 4px;
+        }
+        .badge-provider {
+            background: #e0f2fe;
+            color: #0369a1;
+            padding: 2px 7px;
+            border-radius: 4px;
+            font-weight: 800;
+            font-size: 8.5px;
+            text-transform: uppercase;
+        }
+        .action-comp {
+            font-size: 8.8px;
+            color: #64748b;
+            font-weight: 700;
+        }
+        .action-title {
+            font-size: 9.8px;
+            font-weight: 700;
+            color: #0f172a;
+            margin-bottom: 5px;
+        }
+        /* CAJA DE MENSAJE CLARA Y LIMPIA (SIN FONDO NEGRO) */
+        .msg-box-clean {
+            background: #f8fafc;
+            color: #1e293b;
+            border: 1px solid #cbd5e1;
+            border-left: 4px solid #2563eb;
+            padding: 7px 9px;
+            border-radius: 5px;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            font-size: 9px;
+            line-height: 1.42;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        /* PIE DE PÁGINA MÍNIMO */
+        .clean-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-top: 1px solid #cbd5e1;
+            padding-top: 6px;
+            margin-top: 10px;
+            font-size: 8.5px;
+            color: #64748b;
+        }
+        .clean-footer strong {
+            color: #0f172a;
         }
     </style>
 </head>
 <body>
-    <div class="header avoid-cut">
-        <div class="logo-title">
-            <h1>SENTINEL<span>RECON</span> <small style="font-size:12px; color:#0284c7;">v2.1</small></h1>
-            <small>EASM, Digital Risk Protection (DRPS), Soberanía de Datos & Cumplimiento ANCI | Global365</small>
+    {% set dns = telemetria.dns if telemetria and telemetria.dns else {} %}
+    {% set web = telemetria.web if telemetria and telemetria.web else {} %}
+    {% set puertos = telemetria.puertos if telemetria and telemetria.puertos else {} %}
+    {% set identidad = telemetria.identidad if telemetria and telemetria.identidad else {} %}
+    {% set typo = telemetria.typosquatting if telemetria and telemetria.typosquatting else {} %}
+    {% set shadow = telemetria.shadow_dns if telemetria and telemetria.shadow_dns else {} %}
+    {% set cloud = telemetria.cloud_leaks if telemetria and telemetria.cloud_leaks else {} %}
+    {% set asn = dns.asn_sovereignty if dns and dns.asn_sovereignty else {} %}
+    {% set hprof = dns.hosting_profile if dns and dns.hosting_profile else {} %}
+    {% set rdap = shadow.domain_registration_rdap if shadow and shadow.domain_registration_rdap else {} %}
+    {% set ssl = web.ssl_certificate if web and web.ssl_certificate else {} %}
+    {% set code_aud = web.code_security_audit if web and web.code_security_audit else {} %}
+    {% set sho = puertos.passive_internetdb_intel if puertos and puertos.passive_internetdb_intel else {} %}
+    {% set sso = identidad.corporate_sso_federation if identidad and identidad.corporate_sso_federation else {} %}
+    {% set open_pages = reporte.resumen_paginas_abiertas if reporte and reporte.resumen_paginas_abiertas else {} %}
+    {% set anci9 = reporte.anci_9_basicos if reporte and reporte.anci_9_basicos else {} %}
+
+    <!-- CABECERA EJECUTIVA -->
+    <div class="top-banner avoid-cut">
+        <div class="top-banner-left">
+            <div class="eyebrow">GLOBAL365 SPA | INFORME PARA GERENCIA Y DIRECTORIO | LEY N° 21.663 (ANCI) & LEY N° 21.719</div>
+            <h1>DIAGNÓSTICO EJECUTIVO DE RIESGO DIGITAL Y SEGURIDAD WEB</h1>
         </div>
-        <div class="meta-box">
-            <strong>Objetivo Auditado:</strong> {{ target }}<br>
-            <strong>Fecha de Emisión:</strong> {{ fecha }}<br>
-            <strong>Marco Normativo:</strong> Ley N° 21.663 (ANCI) / Ley N° 21.719 (Datos) / Ley N° 21.459
+        <div class="top-banner-right">
+            <div class="label">EMPRESA EVALUADA ({{ fecha }})</div>
+            <div class="domain-title">{{ target }}</div>
         </div>
     </div>
 
-    <div class="grade-card avoid-cut">
-        <div class="grade-badge grade-{{ reporte.resumen_ejecutivo.calificacion_postura }}">
-            {{ reporte.resumen_ejecutivo.calificacion_postura }}
+    <!-- 5 KPIS SUPERIORES -->
+    {% set score = reporte.resumen_ejecutivo.puntaje_global if reporte and reporte.resumen_ejecutivo else 0 %}
+    {% set grade = reporte.resumen_ejecutivo.calificacion_postura if reporte and reporte.resumen_ejecutivo else 'C' %}
+    {% set dmarc_ok = dns.dmarc.present if dns and dns.dmarc is mapping else False %}
+    {% set clones_count = typo.active_lookalikes_count or typo.mail_ready_clones_count or 0 %}
+    {% set cves_count = (sho.vulns or []) | length %}
+    {% set leaks_count = (identidad.combolist_intelligence.total_leaks if identidad and identidad.combolist_intelligence else 0) or (identidad.compromised_employees or 0) %}
+
+    <div class="kpi-row avoid-cut">
+        <div class="kpi-card">
+            <div class="kpi-title">1. Nota de Seguridad</div>
+            <div class="kpi-main {{ 'text-danger' if grade in ['D', 'F'] else ('text-warn' if grade == 'C' else 'text-ok') }}">
+                {{ score }}% — NOTA {{ grade }}
+            </div>
+            <div class="kpi-sub">{{ 'Riesgo Crítico' if grade in ['D', 'F'] else ('Riesgo Moderado' if grade == 'C' else 'Postura Saludable') }}</div>
         </div>
-        <div class="grade-info">
-            <h3>Puntaje de Postura Perimetral y Riesgo Digital: {{ reporte.resumen_ejecutivo.puntaje_global }} / 100</h3>
-            <p>{{ reporte.prescripcion_endpoint_edr.necesidad_defensa_profundidad }}</p>
+        <div class="kpi-card">
+            <div class="kpi-title">2. Protección Correos</div>
+            <div class="kpi-main {{ 'text-ok' if dmarc_ok else 'text-danger' }}">
+                {{ 'PROTEGIDO' if dmarc_ok else 'DESPROTEGIDO' }}
+            </div>
+            <div class="kpi-sub">{{ 'Filtro anti-suplantación activo' if dmarc_ok else 'Pueden falsificar su correo' }}</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-title">3. Suplantación Marca</div>
+            <div class="kpi-main {{ 'text-danger' if clones_count > 0 else 'text-ok' }}">
+                {{ clones_count }} {{ 'DOMINIO GEMELO' if clones_count == 1 else 'DOMINIOS GEMELOS' }}
+            </div>
+            <div class="kpi-sub">{{ 'Riesgo activo de estafa BEC' if clones_count > 0 else 'Sin clones activos detectados' }}</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-title">4. Sitios y Fallas Web</div>
+            <div class="kpi-main {{ 'text-danger' if cves_count > 0 else 'text-ok' }}">
+                {{ open_pages.get('total_open_web_sites', 1) }} {{ 'SITIO' if open_pages.get('total_open_web_sites', 1) == 1 else 'SITIOS' }} / {{ cves_count }} FALLAS
+            </div>
+            <div class="kpi-sub">
+                {% if (open_pages.get('additional_open_pages_count') or 0) > 0 %}
+                    +{{ open_pages.get('additional_open_pages_count') }} páginas anexas abiertas
+                {% else %}
+                    1 sitio web principal activo
+                {% endif %}
+            </div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-title">5. Claves Filtradas</div>
+            <div class="kpi-main {{ 'text-danger' if leaks_count > 0 else 'text-ok' }}">
+                {{ leaks_count }} {{ 'FILTRACIONES' if leaks_count != 1 else 'FILTRACIÓN' }}
+            </div>
+            <div class="kpi-sub">{{ 'Claves expuestas en Dark Web' if leaks_count > 0 else 'Sin claves en Dark Web ni Combolists' }}</div>
         </div>
     </div>
 
-    <div class="section-title avoid-cut">1. Impacto de Negocio y Exposición Regulatoria (Chile)</div>
-    <div class="summary-grid avoid-cut">
-        <div class="summary-card">
-            <h4>Impacto Financiero y Operacional Proyectado</h4>
-            <p><strong>Financiero:</strong> {{ reporte.resumen_ejecutivo.impacto_financiero_estimado }}</p>
-            <p style="margin-top:4px;"><strong>Operacional:</strong> {{ reporte.resumen_ejecutivo.impacto_operacional }}</p>
-        </div>
-        <div class="summary-card">
-            <h4>Exposición Legal (Ley 21.663 ANCI & Ley 21.719 Datos)</h4>
-            <p>{{ reporte.resumen_ejecutivo.exposicion_regulatoria }}</p>
-        </div>
-    </div>
-
-    <div class="section-title">2. Hallazgos Perimetrales y de Riesgo Digital Prioritarios</div>
-    <table>
-        <thead>
-            <tr>
-                <th style="width: 28%;">Vector de Amenaza</th>
-                <th style="width: 12%;">Criticidad</th>
-                <th style="width: 18%;">Interfaz / Activo</th>
-                <th style="width: 42%;">Evidencia y Detalle Pericial</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for h in reporte.hallazgos_prioritarios %}
-            <tr>
-                <td><strong>{{ h.vector }}</strong></td>
-                <td class="crit-{{ h.criticidad }}">{{ h.criticidad }}</td>
-                <td>{{ h.puerto_servicio }}</td>
-                <td>
-                    <code>{{ h.evidencia_tecnica }}</code><br>
-                    <span style="color:#475569; font-size:9.2px;">{{ h.explicacion_tecnica }}</span>
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-
-    <!-- NUEVA SECCIÓN PROTAGONISTA: LOS 8 PUNTOS DE INTELIGENCIA AVANZADA v2.1 -->
-    {% if telemetria %}
-    {% set asn = telemetria.dns.asn_sovereignty if telemetria.dns and telemetria.dns.asn_sovereignty else {} %}
-    {% set gov = telemetria.dns.governance if telemetria.dns and telemetria.dns.governance else {} %}
-    {% set ssl = telemetria.web.ssl_certificate if telemetria.web and telemetria.web.ssl_certificate else {} %}
-    {% set exp = telemetria.web.exposure_audit if telemetria.web and telemetria.web.exposure_audit else {} %}
-    {% set sso = telemetria.identidad.corporate_sso_federation if telemetria.identidad and telemetria.identidad.corporate_sso_federation else {} %}
-    {% set sho = telemetria.puertos.passive_internetdb_intel if telemetria.puertos and telemetria.puertos.passive_internetdb_intel else {} %}
-    <div class="section-title avoid-cut">3. Matriz de Controles Avanzados v2.1 (Soberanía, PQC, Entra ID, Shodan & Shadow AI)</div>
-    <div class="summary-grid avoid-cut">
-        <div class="summary-card">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:3px;">
-                <h4>1. Soberanía de Datos & BGP/ASN (Ley 21.719)</h4>
+    <!-- 3 RECUADROS DE PROPIEDAD E INFRAESTRUCTURA -->
+    <div class="infra-row avoid-cut">
+        <div class="infra-card">
+            <h4>1. Empresa de Hosting y Ubicación Web</h4>
+            <div class="infra-highlight">
+                {{ hprof.get('provider_display') or asn.get('isp_org') or 'Proveedor Cloud' }} ({{ asn.get('country') or 'Exterior' }})
+            </div>
+            <p>
                 {% if asn.get('hosted_in_chile') %}
-                    <span class="badge-ok">Alojamiento Local CL</span>
+                    Sus servidores operan físicamente en Chile bajo jurisdicción nacional.
                 {% else %}
-                    <span class="badge-warn">Flujo Transfronterizo</span>
-                {% endif %}
-            </div>
-            <p>
-                IP: <code>{{ asn.get('primary_ip') or 'N/D' }}</code> | Proveedor: <strong>{{ asn.get('isp_org') or 'Cloud' }}</strong> ({{ asn.get('asn') or 'ASN' }}) en <strong>{{ asn.get('country') or 'Exterior' }}</strong>.
-            </p>
-        </div>
-
-        <div class="summary-card">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:3px;">
-                <h4>2. Criptografía Post-Cuántica (PQC) & TLS</h4>
-                {% if ssl.get('pqc_ready_transport') %}
-                    <span class="badge-ok">TLS 1.3 PQC Ready</span>
-                {% else %}
-                    <span class="badge-warn">{{ ssl.get('tls_version') or 'TLS 1.2' }}</span>
-                {% endif %}
-            </div>
-            <p>
-                Versión: <strong>{{ ssl.get('tls_version') or 'TLS' }}</strong> | Suite: <code>{{ ssl.get('cipher_suite') or 'Estándar' }}</code> ({{ ssl.get('days_until_expiry') }} días restantes).
-            </p>
-        </div>
-
-        <div class="summary-card">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:3px;">
-                <h4>3. Gobernanza DNS (CAA / MTA-STS / DNSSEC)</h4>
-                {% if gov.get('caa_configured') and gov.get('dnssec_enabled') %}
-                    <span class="badge-ok">Blindado</span>
-                {% else %}
-                    <span class="badge-crit">Incompleto</span>
-                {% endif %}
-            </div>
-            <p>
-                Control Emisión SSL (CAA): <strong>{{ 'Activo' if gov.get('caa_configured') else 'Ausente' }}</strong> |
-                MTA-STS: <strong>{{ 'Activo' if gov.get('mta_sts_configured') else 'Ausente' }}</strong> |
-                DNSSEC: <strong>{{ 'Activo' if gov.get('dnssec_enabled') else 'Inactivo' }}</strong>.
-            </p>
-        </div>
-
-        <div class="summary-card">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:3px;">
-                <h4>4. Identidad Federada SSO (Microsoft Entra ID)</h4>
-                {% if sso.get('uses_entra_id') %}
-                    <span class="badge-ok">{{ sso.get('name_space_type') or 'Entra ID' }}</span>
-                {% else %}
-                    <span class="badge-warn">Sin Federación M365</span>
-                {% endif %}
-            </div>
-            <p>
-                {% if sso.get('uses_entra_id') %}
-                    Tenant ID: <code>{{ sso.get('tenant_id') }}</code> (Región: {{ sso.get('tenant_region') or 'Global' }}).
-                {% else %}
-                    Autenticación gestionada fuera de Microsoft Entra ID / sin federación OpenID pública.
+                    Datos alojados físicamente en {{ asn.get('country') or 'el extranjero' }}. La Ley N° 21.719 exige resguardar el flujo internacional de datos.
                 {% endif %}
             </p>
         </div>
-
-        <div class="summary-card">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:3px;">
-                <h4>5. Fusión Shodan InternetDB & CISA KEV</h4>
-                {% if (sho.get('vulns') or []) | length == 0 %}
-                    <span class="badge-ok">0 CVEs Shodan</span>
+        <div class="infra-card">
+            <h4>2. Propiedad de su Nombre (NIC Chile)</h4>
+            <div class="infra-highlight">
+                {% if rdap.get('days_until_expiration') is not none %}
+                    Al día (Vence en {{ rdap.get('days_until_expiration') }} días: {{ rdap.get('expiration_date') }})
                 {% else %}
-                    <span class="badge-crit">{{ (sho.get('vulns') or []) | length }} CVEs Detectados</span>
+                    Registro Activo ({{ rdap.get('registry') or 'NIC Chile' }})
                 {% endif %}
             </div>
-            <p>
-                Puertos Shodan: <code>{{ (sho.get('shodan_ports') or []) | join(', ') or 'Ninguno' }}</code> |
-                CVEs: <strong>{{ (sho.get('vulns') or [])[:4] | join(', ') or 'Limpio' }}</strong>.
-            </p>
+            <p>Es el arriendo oficial del nombre de su empresa en internet. Si vence, terceros pueden inscribirlo y dejarlo sin página web ni correos.</p>
         </div>
-
-        <div class="summary-card">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:3px;">
-                <h4>6. Clonación Visual Phishing (Favicon mmh3)</h4>
-                {% if (telemetria.typosquatting.visual_phishing_clones_count or 0) == 0 %}
-                    <span class="badge-ok">0 Clones Visuales</span>
-                {% else %}
-                    <span class="badge-crit">Clon Visual Confirmado</span>
-                {% endif %}
+        <div class="infra-card">
+            <h4>3. Candado de Seguridad Web (SSL)</h4>
+            <div class="infra-highlight">
+                {{ 'Activo' if ssl.get('valid', True) else 'Inactivo / Riesgo' }}
+                ({% if ssl.get('days_until_expiry') is not none %}Vence en {{ ssl.get('days_until_expiry') }} días{% endif %} {{ ssl.get('tls_version') or 'TLS' }})
             </div>
-            <p>
-                Hash Favicon: <code>{{ telemetria.web.http_headers.favicon_mmh3 if telemetria.web and telemetria.web.http_headers else 'N/D' }}</code> |
-                Lookalikes con MX: <strong>{{ telemetria.typosquatting.mail_ready_clones_count if telemetria.typosquatting else 0 }}</strong>.
-            </p>
-        </div>
-
-        <div class="summary-card">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:3px;">
-                <h4>7. Exposición API (Swagger / SourceMaps)</h4>
-                {% if not exp.get('openapi_swagger_exposed') and not exp.get('sourcemaps_referenced') %}
-                    <span class="badge-ok">Protegido</span>
-                {% else %}
-                    <span class="badge-crit">Metadatos Expuestos</span>
-                {% endif %}
-            </div>
-            <p>
-                Swagger/OpenAPI: <strong>{{ 'Expuesto' if exp.get('openapi_swagger_exposed') else 'Oculto' }}</strong> |
-                SourceMaps (<code>.js.map</code>): <strong>{{ 'Expuestos' if exp.get('sourcemaps_referenced') else 'Ocultos' }}</strong>.
-            </p>
-        </div>
-
-        <div class="summary-card">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:3px;">
-                <h4>8. Radar Shadow AI (Ollama/vLLM) & Cloud</h4>
-                {% if (telemetria.puertos.shadow_ai_exposed_count or 0) == 0 and (telemetria.cloud_leaks.public_leaking_buckets_count or 0) == 0 %}
-                    <span class="badge-ok">Perímetro Limpio</span>
-                {% else %}
-                    <span class="badge-crit">Exposición Activa</span>
-                {% endif %}
-            </div>
-            <p>
-                Motores IA abiertos: <strong>{{ telemetria.puertos.shadow_ai_exposed_count if telemetria.puertos else 0 }}</strong> |
-                Buckets S3/GCP/Azure/Firebase abiertos: <strong>{{ telemetria.cloud_leaks.public_leaking_buckets_count if telemetria.cloud_leaks else 0 }}</strong>.
-            </p>
+            <p>Es el candado que cifra los datos que ingresan sus clientes. Si caduca, los navegadores bloquean su página con alerta de "Sitio Peligroso".</p>
         </div>
     </div>
-    {% endif %}
 
-    {% if reporte.inteligencia_drps_persistencia %}
-    <div class="section-title avoid-cut">4. Diagnóstico Cognitivo DRPS: Identidades, Marca, Shadow IT y KEV</div>
-    <div class="summary-grid avoid-cut">
-        <div class="summary-card">
-            <h4>Radar Infostealers (Hudson Rock) & Federación SSO</h4>
-            <p>{{ reporte.inteligencia_drps_persistencia.diagnostico_infostealers_identidad }}</p>
+    <!-- BARRA DE LOS 9 BÁSICOS DE LA ANCI -->
+    {% if anci9 and anci9.get('items') %}
+    <div class="anci-bar avoid-cut">
+        <div class="anci-bar-header">
+            <div class="anci-bar-title">
+                Indicador de Cobertura ANCI — Los 9 Básicos de Ciberseguridad ({{ anci9.get('covered_by_recon_count', 4) }}/9 Auditados por SentinelRecon)
+            </div>
+            <div class="anci-bar-legend">
+                <span><i class="legend-dot" style="background:#16a34a;"></i>Cumple</span>
+                <span><i class="legend-dot" style="background:#f97316;"></i>Atención</span>
+                <span><i class="legend-dot" style="background:#dc2626;"></i>En Riesgo</span>
+                <span><i class="legend-dot" style="background:#cbd5e1; border:1px dashed #64748b;"></i>Control Interno PCs (5/9)</span>
+            </div>
         </div>
-        <div class="summary-card">
-            <h4>Escudo Anti-Suplantación BEC y Clonación Visual</h4>
-            <p>{{ reporte.inteligencia_drps_persistencia.diagnostico_typosquatting_bec }}</p>
-        </div>
-        <div class="summary-card">
-            <h4>Superficie Sombra, Soberanía BGP/ASN y Vigencia NIC.cl</h4>
-            <p>{{ reporte.inteligencia_drps_persistencia.diagnostico_shadow_dns_nic }}</p>
-        </div>
-        <div class="summary-card">
-            <h4>Priorización CISA KEV / EPSS, Shodan InternetDB & Cloud</h4>
-            <p>{{ reporte.inteligencia_drps_persistencia.diagnostico_kev_epss_cloud }}</p>
-        </div>
-    </div>
-    {% endif %}
-
-    <div class="section-title">5. Matriz de Responsabilidades y Minutas para Proveedores (TPRM)</div>
-    <div class="tprm-banner avoid-cut">
-        <strong>Modelo de Responsabilidad Compartida (Art. 8 Ley N° 21.663):</strong>
-        A continuación se entregan las minutas técnicas listas para enviar como ticket de soporte a sus proveedores externos.
-    </div>
-
-    {% if reporte.comandos_remediacion_ti %}
-    <table>
-        <thead>
-            <tr>
-                <th style="width: 24%;">Responsable</th>
-                <th style="width: 26%;">Componente / Acción</th>
-                <th style="width: 50%;">Minuta Técnica para Ticket de Soporte / Comando</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for c in reporte.comandos_remediacion_ti %}
-            <tr>
-                <td><span class="badge-provider">{{ c.responsable_ejecucion or 'Proveedor Externo' }}</span></td>
-                <td>
-                    <strong>{{ c.componente_afectado }}</strong><br>
-                    <span style="color:#64748b; font-size:9px;">{{ c.accion_inmediata }}</span>
-                </td>
-                <td><span class="cmd-box">{{ c.comando_o_script_sugerido }}</span></td>
-            </tr>
+        <div class="anci-circles-grid">
+            {% for item in anci9.get('items', []) %}
+            <div class="anci-item">
+                <div class="anci-circle circle-{{ item.color }}">{{ item.numero }}</div>
+                <div class="anci-name">{{ item.nombre_corto }}</div>
+                <div class="anci-scope">
+                    {% if item.audited_by_recon %}
+                        <strong>{{ item.estado }}</strong>
+                    {% else %}
+                        {{ item.alcance_label }}
+                    {% endif %}
+                </div>
+            </div>
             {% endfor %}
-        </tbody>
-    </table>
-    {% endif %}
-
-    {% if reporte.gobernanza_anci_ley21663 %}
-    <div class="section-title avoid-cut">6. Gobernanza Ley N° 21.663 (ANCI) y Pre-Alerta CSIRT (≤ 3 Horas)</div>
-    <div class="anci-box avoid-cut">
-        <h4>Dictamen de Inventario Continuo (Art. 8), Soberanía de Datos (Ley 21.719) y TPRM</h4>
-        <p><strong>Cumplimiento Art. 8:</strong> {{ reporte.gobernanza_anci_ley21663.estado_inventario_art8 }}</p>
-        <p style="margin-top:4px;"><strong>Directriz Proveedores (TPRM):</strong> {{ reporte.gobernanza_anci_ley21663.directriz_cadena_suministro_tprm }}</p>
-        <h4 style="margin-top:8px;">Plantilla Preventiva de Alerta Temprana CSIRT Nacional (Ventana Legal ≤ 3 Horas - Art. 9)</h4>
-        <p><code>{{ reporte.gobernanza_anci_ley21663.borrador_alerta_temprana_3h_csirt }}</code></p>
+        </div>
     </div>
     {% endif %}
 
-    <div class="section-title avoid-cut">7. Defensa en Profundidad: Despliegue de SentinelAgent (EDR) en PCs Windows</div>
-    <table class="avoid-cut">
-        <thead>
-            <tr>
-                <th style="width: 25%;">Módulo SentinelAgent</th>
-                <th style="width: 40%;">Control Compensatorio en el Host Windows</th>
-                <th style="width: 35%;">Mitigación de Brecha Perimetral / Identidad</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for a in reporte.prescripcion_endpoint_edr.acciones_inmediatas_edr %}
-            <tr>
-                <td><strong>{{ a.modulo_edr }}</strong></td>
-                <td>{{ a.control_compensatorio }}</td>
-                <td>{{ a.mitigacion_vector_perimetral }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+    <!-- SECCIÓN 1: RADIOGRAFÍA PROFUNDA EN 14 PUNTOS (FUSIONADA CON EL IMPACTO DE NEGOCIO Y MARCO LEGAL) -->
+    <div class="section-header avoid-cut">
+        <h2>1. Radiografía Profunda de su Empresa en 14 Puntos Clave (Infraestructura, Páginas Abiertas, Código y Dark Web)</h2>
+        <span>SEMÁFORO EJECUTIVO v2.3</span>
+    </div>
 
-    <div class="footer-cta avoid-cut">
-        <h3>Suscripción de Vigilancia Continua SentinelRecon + Piloto SentinelAgent (14 Días)</h3>
-        <p>{{ reporte.prescripcion_endpoint_edr.argumentario_cierre_comercial }}</p>
-        <p style="margin-top: 6px; font-weight: bold; color: #38bdf8;">Global365 SpA | EASM, DRPS, TPRM & Endpoint Security Intelligence</p>
+    <div class="integrated-impact-banner avoid-cut">
+        <strong>Resumen de Impacto Operacional y Marco Legal (Ley N° 21.663 & Ley N° 21.719):</strong>
+        {{ reporte.resumen_ejecutivo.impacto_operacional }} {{ reporte.resumen_ejecutivo.exposicion_regulatoria }}
+    </div>
+
+    {% set eol_list = code_aud.get('eol_software_detected') or [] %}
+    {% set js_list = code_aud.get('outdated_js_libraries') or [] %}
+    {% set neighbors_count = (dns.shared_hosting_forensics.neighbor_domains_count if dns and dns.shared_hosting_forensics else 0) %}
+    {% set extra_pages_count = open_pages.get('additional_open_pages_count') or 0 %}
+    {% set extra_pages_list = open_pages.get('additional_pages') or [] %}
+
+    <div class="semaforo-grid">
+        <!-- Punto 1 -->
+        <div class="point-card {{ 'point-card-warn' if not asn.get('hosted_in_chile') or neighbors_count > 0 else 'point-card-ok' }} avoid-cut">
+            <div class="point-top">
+                <span class="point-title">1. ¿Quién aloja su web y en qué país están sus datos?</span>
+                <span class="pill {{ 'pill-ATENCIÓN' if not asn.get('hosted_in_chile') or neighbors_count > 0 else 'pill-BIEN' }}">
+                    {{ 'ATENCIÓN' if not asn.get('hosted_in_chile') or neighbors_count > 0 else 'BIEN' }}
+                </span>
+            </div>
+            <p class="point-body">
+                Administrado vía <strong>{{ hprof.get('provider_display') or asn.get('isp_org') or 'Hosting' }}</strong> con datos físicos en <strong>{{ asn.get('country') or 'Exterior' }}</strong>.
+                {% if not asn.get('hosted_in_chile') %}La Ley N° 21.719 exige declarar el flujo internacional de datos.{% endif %}
+            </p>
+            {% if neighbors_count > 0 %}
+            <div class="sub-warn">
+                <strong>INFRAESTRUCTURA COMPARTIDA ({{ neighbors_count }} vecinos en la misma IP):</strong> Si un sitio vecino sufre un ataque o cae en listas de Spam, puede afectar la disponibilidad de su empresa.
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Punto 2 -->
+        <div class="point-card {{ 'point-card-ok' if ssl.get('valid', True) else 'point-card-crit' }} avoid-cut">
+            <div class="point-top">
+                <span class="point-title">2. ¿Es segura la conexión de sus clientes a su web?</span>
+                <span class="pill {{ 'pill-BIEN' if ssl.get('valid', True) else 'pill-PELIGRO' }}">{{ 'BIEN' if ssl.get('valid', True) else 'PELIGRO' }}</span>
+            </div>
+            <p class="point-body">
+                Su candado web (SSL) está {{ 'vigente' if ssl.get('valid', True) else 'vencido o inválido' }}
+                {% if ssl.get('days_until_expiry') is not none %}por {{ ssl.get('days_until_expiry') }} días{% endif %}
+                y usa tecnología <strong>{{ ssl.get('tls_version') or 'TLS' }}</strong>. Protege la navegación de los visitantes.
+            </p>
+        </div>
+
+        <!-- Punto 3 -->
+        <div class="point-card {{ 'point-card-ok' if dmarc_ok else 'point-card-crit' }} avoid-cut">
+            <div class="point-top">
+                <span class="point-title">3. ¿Pueden falsificar sus correos o su dominio?</span>
+                <span class="pill {{ 'pill-BIEN' if dmarc_ok else 'pill-PELIGRO' }}">{{ 'BIEN' if dmarc_ok else 'PELIGRO' }}</span>
+            </div>
+            <p class="point-body">
+                Bloqueo de correos falsos (DMARC): <strong>{{ 'Activo' if dmarc_ok else 'Desactivado' }}</strong>.
+                {% if not dmarc_ok %}Hoy terceros pueden enviar correos falsos usando el nombre de su empresa para desviar pagos de facturas (Fraude BEC).{% else %}Sus correos cuentan con validación anti-suplantación.{% endif %}
+            </p>
+        </div>
+
+        <!-- Punto 4 -->
+        <div class="point-card {{ 'point-card-ok' if sso.get('uses_entra_id') else 'point-card-warn' }} avoid-cut">
+            <div class="point-top">
+                <span class="point-title">4. ¿Cuentan con control centralizado de accesos (MFA)?</span>
+                <span class="pill {{ 'pill-BIEN' if sso.get('uses_entra_id') else 'pill-ATENCIÓN' }}">{{ 'BIEN' if sso.get('uses_entra_id') else 'ATENCIÓN' }}</span>
+            </div>
+            <p class="point-body">
+                {% if sso.get('uses_entra_id') %}
+                    Cuentan con federación corporativa Microsoft Entra ID / M365 para control centralizado de identidades.
+                {% else %}
+                    No utilizan acceso corporativo blindado de Microsoft 365; las contraseñas individuales son más vulnerables a robo.
+                {% endif %}
+            </p>
+        </div>
+
+        <!-- Punto 5 -->
+        <div class="point-card {{ 'point-card-crit' if cves_count > 0 or (eol_list | length) > 0 else 'point-card-ok' }} avoid-cut">
+            <div class="point-top">
+                <span class="point-title">5. ¿Su servidor web tiene fallas o tecnología vencida?</span>
+                <span class="pill {{ 'pill-PELIGRO' if cves_count > 0 or (eol_list | length) > 0 else 'pill-BIEN' }}">
+                    {{ 'PELIGRO' if cves_count > 0 or (eol_list | length) > 0 else 'BIEN' }}
+                </span>
+            </div>
+            <p class="point-body">
+                {% if cves_count > 0 %}
+                    Su servidor acumula <strong>{{ cves_count }} vulnerabilidades públicas</strong> ({{ (sho.vulns or [])[:3] | join(', ') }}) por falta de actualización, permitiendo atacar o botar el sitio web.
+                {% else %}
+                    No se detectaron vulnerabilidades públicas (CVEs) expuestas en el servidor principal.
+                {% endif %}
+            </p>
+            {% if (eol_list | length) > 0 %}
+            <div class="sub-alert">
+                <strong>TECNOLOGÍA VENCIDA:</strong> {{ eol_list[0].get('product', 'Software base') }} {{ eol_list[0].get('version', '') }} cerró su ciclo de soporte ({{ eol_list[0].get('eol_date', 'EOL') }}).
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Punto 6 -->
+        <div class="point-card {{ 'point-card-crit' if clones_count > 0 else 'point-card-ok' }} avoid-cut">
+            <div class="point-top">
+                <span class="point-title">6. ¿Alguien ha creado un dominio parecido al suyo?</span>
+                <span class="pill {{ 'pill-PELIGRO' if clones_count > 0 else 'pill-BIEN' }}">{{ 'PELIGRO' if clones_count > 0 else 'BIEN' }}</span>
+            </div>
+            <p class="point-body">
+                {% if clones_count > 0 %}
+                    Existe <strong>{{ clones_count }} dominio casi idéntico activo</strong> registrado en internet, creando alto riesgo de desvío de pagos o estafas a sus clientes o pacientes.
+                {% else %}
+                    No se detectaron dominios gemelos activos que suplanten el nombre de su empresa.
+                {% endif %}
+            </p>
+        </div>
+
+        <!-- Punto 7 -->
+        <div class="point-card {{ 'point-card-crit' if (js_list | length) > 0 else 'point-card-ok' }} avoid-cut">
+            <div class="point-top">
+                <span class="point-title">7. ¿El código de su web es vulnerable (PHP / Scripts)?</span>
+                <span class="pill {{ 'pill-PELIGRO' if (js_list | length) > 0 else 'pill-BIEN' }}">{{ 'PELIGRO' if (js_list | length) > 0 else 'BIEN' }}</span>
+            </div>
+            <p class="point-body">
+                Blindaje contra inyección de código (CSP/HSTS): <strong>{{ 'Activo' if web.get('hsts') else 'Ausente' }}</strong>.
+                {% if (js_list | length) > 0 %}
+                    Se detectaron librerías web vencidas ({{ js_list[0].get('library', 'JS') }} {{ js_list[0].get('version', '') }}) vulnerables a inyección de código malicioso en formularios.
+                {% else %}
+                    Sin librerías JavaScript obsoletas críticas detectadas en la portada.
+                {% endif %}
+            </p>
+        </div>
+
+        <!-- Punto 8 -->
+        {% set exp_files = (web.exposure_audit.exposed_sensitive_files_count if web and web.exposure_audit else 0) %}
+        <div class="point-card {{ 'point-card-crit' if exp_files > 0 else 'point-card-ok' }} avoid-cut">
+            <div class="point-top">
+                <span class="point-title">8. ¿Hay archivos internos o respaldos a la vista?</span>
+                <span class="pill {{ 'pill-PELIGRO' if exp_files > 0 else 'pill-BIEN' }}">{{ 'PELIGRO' if exp_files > 0 else 'BIEN' }}</span>
+            </div>
+            <p class="point-body">
+                Archivos de programación/APIs: <strong>{{ 'Expuestos' if exp_files > 0 else 'Bien ocultos' }}</strong> | Respaldos o claves (<code>.env/.zip</code>): <strong>{{ exp_files }} Expuestos</strong>.
+            </p>
+        </div>
+
+        <!-- Punto 9 -->
+        {% set rbl_listed = dns.rbl_reputation.blacklisted if dns and dns.rbl_reputation else False %}
+        <div class="point-card {{ 'point-card-crit' if rbl_listed else 'point-card-ok' }} avoid-cut">
+            <div class="point-top">
+                <span class="point-title">9. ¿Sus correos caen en Listas Negras de Spam?</span>
+                <span class="pill {{ 'pill-PELIGRO' if rbl_listed else 'pill-BIEN' }}">{{ 'PELIGRO' if rbl_listed else 'BIEN' }}</span>
+            </div>
+            <p class="point-body">
+                {{ 'El servidor figura en listas negras de Spam, bloqueando el envío de correos.' if rbl_listed else 'El servidor de su empresa no figura bloqueado en listas negras internacionales de Spam.' }}
+            </p>
+        </div>
+
+        <!-- Punto 10 -->
+        {% set open_buckets = cloud.public_leaking_buckets_count if cloud else 0 %}
+        {% set shadow_ai = puertos.shadow_ai_exposed_count if puertos else 0 %}
+        <div class="point-card {{ 'point-card-crit' if open_buckets > 0 or shadow_ai > 0 else 'point-card-ok' }} avoid-cut">
+            <div class="point-top">
+                <span class="point-title">10. ¿Hay bases de datos o IA abiertas por error?</span>
+                <span class="pill {{ 'pill-PELIGRO' if open_buckets > 0 or shadow_ai > 0 else 'pill-BIEN' }}">{{ 'PELIGRO' if open_buckets > 0 or shadow_ai > 0 else 'BIEN' }}</span>
+            </div>
+            <p class="point-body">
+                Bases de datos en la nube abiertas: <strong>{{ open_buckets }}</strong> | Sistemas de Inteligencia Artificial sin clave: <strong>{{ shadow_ai }}</strong>.
+            </p>
+        </div>
+
+        <!-- Punto 11 -->
+        {% set gh_leaks = identidad.github_code_leaks.github_leaks_count if identidad and identidad.github_code_leaks else 0 %}
+        <div class="point-card {{ 'point-card-crit' if leaks_count > 0 or gh_leaks > 0 else 'point-card-ok' }} avoid-cut">
+            <div class="point-top">
+                <span class="point-title">11. ¿Hay claves en Combolists o código en GitHub?</span>
+                <span class="pill {{ 'pill-PELIGRO' if leaks_count > 0 or gh_leaks > 0 else 'pill-BIEN' }}">{{ 'PELIGRO' if leaks_count > 0 or gh_leaks > 0 else 'BIEN' }}</span>
+            </div>
+            <p class="point-body">
+                Cuentas en Combolists/Dark Web: <strong>{{ leaks_count }}</strong> | Código público en GitHub: <strong>{{ gh_leaks }} coincidencias</strong>.
+            </p>
+        </div>
+
+        <!-- Punto 12: BUSCADOR DE PÁGINAS ABIERTAS Y PORTALES OLVIDADOS -->
+        <div class="point-card {{ 'point-card-warn' if extra_pages_count > 0 else 'point-card-ok' }} avoid-cut">
+            <div class="point-top">
+                <span class="point-title">12. ¿Cuántas páginas o portales anexos tienen abiertos?</span>
+                <span class="pill {{ 'pill-ATENCIÓN' if extra_pages_count > 0 else 'pill-BIEN' }}">{{ open_pages.get('status_badge', 'BIEN') }}</span>
+            </div>
+            <p class="point-body">
+                <strong>{{ open_pages.get('headline', '1 Sitio Web Principal activo — Sin páginas secundarias olvidadas') }}</strong>.
+                {% if extra_pages_count > 0 %}
+                    Páginas anexas detectadas:
+                    {% for p in extra_pages_list[:4] %}
+                        <code>{{ p.get('subdomain') }}</code> ({{ p.get('page_title') or p.get('role') }}){% if not loop.last %}, {% endif %}
+                    {% endfor %}.
+                {% else %}
+                    No se detectaron sitios antiguos de campañas, postulaciones ni paneles olvidados expuestos.
+                {% endif %}
+            </p>
+        </div>
+
+        <!-- Punto 13 -->
+        {% set magecart = code_aud.ecommerce_magecart_risk.magecart_skimming_risk if code_aud and code_aud.ecommerce_magecart_risk else False %}
+        <div class="point-card {{ 'point-card-crit' if magecart else 'point-card-ok' }} avoid-cut">
+            <div class="point-top">
+                <span class="point-title">13. ¿Sus pagos web o WhatsApp tienen riesgo de fraude?</span>
+                <span class="pill {{ 'pill-PELIGRO' if magecart else 'pill-BIEN' }}">{{ 'PELIGRO' if magecart else 'BIEN' }}</span>
+            </div>
+            <p class="point-body">
+                {{ 'Riesgo de interceptación en scripts de pasarela de pago.' if magecart else 'Sin exposición crítica en pasarelas de pago web.' }}
+            </p>
+        </div>
+
+        <!-- Punto 14 -->
+        {% set pdf_authors = (code_aud.public_documents_metadata.exposed_authors_or_users if code_aud and code_aud.public_documents_metadata else []) %}
+        <div class="point-card {{ 'point-card-warn' if (pdf_authors | length) > 0 else 'point-card-ok' }} avoid-cut">
+            <div class="point-top">
+                <span class="point-title">14. ¿Los documentos PDF de su web filtran datos internos?</span>
+                <span class="pill {{ 'pill-ATENCIÓN' if (pdf_authors | length) > 0 else 'pill-BIEN' }}">{{ 'ATENCIÓN' if (pdf_authors | length) > 0 else 'BIEN' }}</span>
+            </div>
+            <p class="point-body">
+                {% if (pdf_authors | length) > 0 %}
+                    Metadatos expuestos en PDFs públicos: {{ pdf_authors[:3] | join(', ') }}.
+                {% else %}
+                    Documentos públicos inspeccionados: sin exposición de nombres de usuarios internos en metadatos.
+                {% endif %}
+            </p>
+        </div>
+    </div>
+
+        <!-- PIE DE PÁGINA MÍNIMO (SIN PUNTO 6 NI ANEXO TÉCNICO) -->
+    <div class="clean-footer avoid-cut">
+        <div>
+            <strong>CERTIFICACIÓN DE VIGILANCIA DIGITAL GLOBAL365 SPA</strong> — Diagnóstico generado por SentinelRecon v2.3 conforme a los 9 Básicos de la ANCI (Ley N° 21.663) y Ley N° 21.719.
+        </div>
+        <div><strong>GLOBAL365 SPA</strong></div>
     </div>
 </body>
 </html>
@@ -524,7 +788,7 @@ def generate_html_report(
     raw_telemetry: Optional[Dict[str, Any]] = None,
     posture: Optional[Dict[str, Any]] = None
 ) -> str:
-    """Renderiza el informe visual ejecutivo enriquecido con telemetría DRPS v2.1."""
+    """Renderiza el informe visual ejecutivo enriquecido con telemetría DRPS v2.3."""
     template = Template(HTML_TEMPLATE)
     rendered_html = template.render(
         target=target,
