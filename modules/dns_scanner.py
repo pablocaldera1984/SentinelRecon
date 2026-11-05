@@ -7,7 +7,7 @@ import httpx
 import dns.resolver
 import dns.asyncresolver
 import dns.reversename
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from config import DKIM_SELECTORS, DNS_TIMEOUT
@@ -48,7 +48,7 @@ HOSTING_PROVIDER_CATALOG = [
 
 
 async def check_spf(domain: str, resolver: dns.asyncresolver.Resolver) -> Dict[str, Any]:
-    result = {
+    result: Dict[str, Any] = {
         "exists": False,
         "status": "NOT_CONFIGURED",
         "raw_record": None,
@@ -98,7 +98,7 @@ async def check_spf(domain: str, resolver: dns.asyncresolver.Resolver) -> Dict[s
 
 
 async def check_dmarc(domain: str, resolver: dns.asyncresolver.Resolver) -> Dict[str, Any]:
-    result = {
+    result: Dict[str, Any] = {
         "exists": False,
         "status": "NOT_CONFIGURED",
         "policy": "none",
@@ -156,7 +156,7 @@ async def check_dkim_selector(domain: str, selector: str, resolver: dns.asyncres
 
 
 async def check_aaaa(domain: str, resolver: dns.asyncresolver.Resolver) -> Dict[str, Any]:
-    ipv6_list = []
+    ipv6_list: List[str] = []
     try:
         answers = await resolver.resolve(domain, 'AAAA')
         ipv6_list = [r.to_text().strip() for r in answers]
@@ -170,7 +170,7 @@ async def check_aaaa(domain: str, resolver: dns.asyncresolver.Resolver) -> Dict[
 
 
 async def check_nameservers(domain: str, resolver: dns.asyncresolver.Resolver) -> List[str]:
-    ns_list = []
+    ns_list: List[str] = []
     try:
         answers = await resolver.resolve(domain, 'NS')
         ns_list = [str(r.target).rstrip('.').lower() for r in answers]
@@ -180,7 +180,7 @@ async def check_nameservers(domain: str, resolver: dns.asyncresolver.Resolver) -
 
 
 async def check_mx_architecture(domain: str, resolver: dns.asyncresolver.Resolver) -> Dict[str, Any]:
-    mx_info = {
+    mx_info: Dict[str, Any] = {
         "mx_records": [],
         "mail_provider_detected": "Sin Correo Configurado"
     }
@@ -210,7 +210,7 @@ async def check_mx_architecture(domain: str, resolver: dns.asyncresolver.Resolve
 
 async def check_single_srv(prefix: str, service_name: str, domain: str, resolver: dns.asyncresolver.Resolver) -> List[Dict[str, Any]]:
     target = f"{prefix}.{domain}"
-    found = []
+    found: List[Dict[str, Any]] = []
     try:
         answers = await resolver.resolve(target, 'SRV')
         for r in answers:
@@ -247,7 +247,7 @@ async def check_srv_records(domain: str, resolver: dns.asyncresolver.Resolver) -
 
 
 async def check_advanced_dns_governance(domain: str, resolver: dns.asyncresolver.Resolver) -> Dict[str, Any]:
-    gov = {
+    gov: Dict[str, Any] = {
         "caa_configured": False,
         "caa_records": [],
         "mta_sts_configured": False,
@@ -299,8 +299,8 @@ async def check_advanced_dns_governance(domain: str, resolver: dns.asyncresolver
     return gov
 
 
-async def check_rbl_blacklists(ip: str, resolver: dns.asyncresolver.Resolver) -> Dict[str, Any]:
-    rbl_result = {
+async def check_rbl_blacklists(ip: Optional[str], resolver: dns.asyncresolver.Resolver) -> Dict[str, Any]:
+    rbl_result: Dict[str, Any] = {
         "checked_ip": ip,
         "is_blacklisted": False,
         "listed_count": 0,
@@ -356,11 +356,13 @@ def _extract_cert_hostname_by_ip(ip: str, port: int = 2083) -> str:
                         if "." in cn and not cn.startswith("*."):
                             return cn
                 san_ext = cert.extensions.get_extension_for_oid(x509.ExtensionOID.SUBJECT_ALTERNATIVE_NAME)
-                sans = san_ext.value.get_values_for_type(x509.DNSName)
-                for s in sans:
-                    s_clean = s.strip().lower().lstrip("*.")
-                    if "." in s_clean:
-                        return s_clean
+                san_val = san_ext.value
+                if isinstance(san_val, x509.SubjectAlternativeName):
+                    sans = san_val.get_values_for_type(x509.DNSName)
+                    for s in sans:
+                        s_clean = s.strip().lower().lstrip("*.")
+                        if "." in s_clean:
+                            return s_clean
     except Exception:
         pass
     return ""
@@ -392,7 +394,7 @@ async def unmask_hidden_server_and_neighbors(
     isp_org: str,
     resolver: dns.asyncresolver.Resolver
 ) -> Dict[str, Any]:
-    unmask = {
+    unmask: Dict[str, Any] = {
         "ptr_reverse_dns": None,
         "master_server_hostname": None,
         "uses_dynamic_dns_trick": False,
@@ -459,12 +461,11 @@ async def unmask_hidden_server_and_neighbors(
     master_host = non_client_candidates[0] if non_client_candidates else (candidates[0] if candidates else None)
     unmask["master_server_hostname"] = master_host
 
-    # Si el hostname maestro descubierto usa ddns.net / no-ip, activar también la bandera de DNS Dinámico
     if master_host and any(k in master_host for k in ["ddns.net", "no-ip", "dyndns", "afraid.org", "duckdns"]):
         unmask["uses_dynamic_dns_trick"] = True
         unmask["dynamic_dns_provider"] = "No-IP / DDNS.net"
 
-    clean_neighbor_roots = []
+    clean_neighbor_roots: List[str] = []
     for n in neighbors_list:
         root_n = re.sub(r'^(?:www|mail|cpanel|webmail|autodiscover|cpcalendars|cpcontacts|ftp)\.', '', n)
         if root_n != domain and root_n != master_host and root_n not in clean_neighbor_roots:
@@ -648,7 +649,7 @@ async def check_asn_and_data_sovereignty(
     ns_list: List[str],
     resolver: dns.asyncresolver.Resolver
 ) -> Dict[str, Any]:
-    info = {
+    info: Dict[str, Any] = {
         "primary_ip": None,
         "asn": None,
         "isp_org": None,

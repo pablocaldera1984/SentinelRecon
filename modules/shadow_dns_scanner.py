@@ -1,13 +1,14 @@
 # modules/shadow_dns_scanner.py
 import asyncio
 import hashlib
+import html
 import json
 import re
 import socket
 from datetime import datetime, timezone
 import httpx
 import dns.asyncresolver
-from typing import Dict, Any, List, Set
+from typing import Dict, Any, List, Set, Tuple
 
 TAKEOVER_FINGERPRINTS = {
     "github.io": {"service": "GitHub Pages", "body_match": "There isn't a GitHub Pages site here"},
@@ -27,8 +28,16 @@ TAKEOVER_FINGERPRINTS = {
 COMMON_SHADOW_SUBS = [
     "www", "mail", "webmail", "vpn", "remote", "portal", "admin", "intranet",
     "api", "dev", "test", "staging", "beta", "app", "cloud", "autodiscover",
-    "cpanel", "webdisk", "ns1", "ns2", "smtp", "pop", "imap", "erp", "pagos"
+    "cpanel", "webdisk", "ns1", "ns2", "smtp", "pop", "imap", "erp", "pagos",
+    "clientes", "proveedores", "postulaciones", "personas", "empresas", "tienda",
+    "pagosweb", "facturacion", "soporte", "ayuda", "capacitacion", "aula", "campus"
 ]
+
+# Prefijos de infraestructura pura (correo/DNS) que no se contabilizan como "páginas web anexas de negocio"
+NON_WEB_INFRA_PREFIXES = {
+    "ns1", "ns2", "ns3", "ns4", " dns", "dns1", "dns2",
+    "smtp", "pop", "pop3", "imap", "mx", "mx1", "mx2", "autodiscover", "autoconfig"
+}
 
 # Clasificador de subdominios de alto riesgo (Ambientes olvidados de ex-proveedores o paneles administrativos)
 HIGH_RISK_SUBDOMAIN_PREFIXES = {
@@ -43,21 +52,26 @@ HIGH_RISK_SUBDOMAIN_PREFIXES = {
     "vpn": "Concentrador de Red Privada Expuesto (vpn)",
     "remote": "Acceso Remoto de Terceros (remote)",
     "erp": "Sistema de Gestión / Facturación Expuesto (erp)",
-    "webdisk": "Disco Remoto de Archivos del Servidor (webdisk)"
+    "webdisk": "Disco Remoto de Archivos del Servidor (webdisk)",
+    "portal": "Portal Corporativo / Acceso Secundario (portal)",
+    "clientes": "Portal de Clientes Expuesto (clientes)",
+    "proveedores": "Portal de Proveedores Expuesto (proveedores)",
+    "postulaciones": "Portal de Postulaciones / Campaña (postulaciones)",
+    "facturacion": "Sistema de Facturación / Pagos (facturacion)"
 }
 
 
-async def _fetch_ct_subdomains(domain: str, timeout: float = 7.0) -> List[str]:
+async def _fetch_ct_subdomains(domain: str, timeout: float = 7.0) -> Tuple[List[str], List[str]]:
     """
-    Combina Certificate Transparency (crt.sh), HackerTarget Passive DNS y
-    subdominios corporativos frecuentes para garantizar descubrimiento 100% resiliente.
+    Combina Certificate Transparency (crt.sh) y HackerTarget Passive DNS (prioridad 1: hallazgos reales)
+    con subdominios corporativos frecuentes (prioridad 2: diccionario activo).
+    Retorna (osint_discovered, dictionary_candidates).
     """
-    subdomains: Set[str] = {domain, f"www.{domain}"}
-    for prefix in COMMON_SHADOW_SUBS:
-        subdomains.add(f"{prefix}.{domain}")
+    osint_subs: Set[str] = set()
+    dict_subs: Set[str] = {f"{prefix}.{domain}" for prefix in COMMON_SHADOW_SUBS}
 
     headers = {
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) SentinelRecon/2.2",
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) SentinelRecon/2.3",
         "Accept": "application/json, text/plain, */*"
     }
 
@@ -70,7 +84,7 @@ async def _fetch_ct_subdomains(domain: str, timeout: float = 7.0) -> List[str]:
                     if parts:
                         sub = parts[0].strip().lower()
                         if sub.endswith(f".{domain}") or sub == domain:
-                            subdomains.add(sub)
+                            osint_subs.add(sub)
         except Exception:
             pass
 
@@ -84,20 +98,82 @@ async def _fetch_ct_subdomains(domain: str, timeout: float = 7.0) -> List[str]:
                         if sub.startswith("*."):
                             sub = sub[2:]
                         if (sub == domain or sub.endswith(f".{domain}")) and "@" not in sub:
-                            subdomains.add(sub)
+                            osint_subs.add(sub)
         except Exception:
             pass
 
-    return sorted(list(subdomains))
+    return sorted(list(osint_subs)), sorted(list(dict_subs - osint_subs))
+
+
+async def _probe_live_web_page(subdomain: str, domain: str) -> Dict[str, Any]:
+    """
+    Verifica si un subdominio con IP activa tiene una página o portal web abierto (HTTP/HTTPS),
+    extrayendo su título (<title>), estado HTTP, tecnología y si presenta un login o panel.
+    """
+    web_info = {
+        "web_active": False,
+        "url": None,
+        "http_status": None,
+        "page_title": None,
+        "server_tech": None,
+        "has_login_form": False,
+        "is_main_site": subdomain in (domain, f"www.{domain}")
+    }
+
+    # Omitir sondeo HTTP en subdominios puramente de infraestructura DNS o transporte de correo
+    if subdomain.endswith(f".{domain}"):
+        prefix = subdomain[:-len(f".{domain}")].split(".")[0]
+        if prefix in NON_WEB_INFRA_PREFIXES:
+            return web_info
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 SentinelRecon/2.3",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+    }
+
+    async with httpx.AsyncClient(timeout=2.5, verify=False, follow_redirects=True, max_redirects=3, headers=headers) as client:
+        for scheme in ("https", "http"):
+            try:
+                resp = await client.get(f"{scheme}://{subdomain}")
+                # Consideramos sitio web activo si responde un estado válido de aplicación web
+                if resp.status_code in (200, 201, 202, 204, 301, 302, 307, 308, 401, 403):
+                    web_info["web_active"] = True
+                    web_info["url"] = str(resp.url)
+                    web_info["http_status"] = resp.status_code
+
+                    srv = resp.headers.get("server", "")
+                    powered = resp.headers.get("x-powered-by", "")
+                    tech_parts = [p.strip() for p in (srv, powered) if p.strip()]
+                    if tech_parts:
+                        web_info["server_tech"] = " | ".join(tech_parts)[:60]
+
+                    body_sample = resp.text[:15000] if resp.text else ""
+                    title_match = re.search(r"<title[^>]*>(.*?)</title>", body_sample, re.IGNORECASE | re.DOTALL)
+                    if title_match:
+                        raw_title = html.unescape(title_match.group(1))
+                        clean_title = re.sub(r"\s+", " ", raw_title).strip()
+                        if clean_title:
+                            web_info["page_title"] = clean_title[:80]
+
+                    if re.search(r'type=["\']password["\']|wp-login|cpanel|webmail|iniciar sesi[oó]n|login', body_sample, re.IGNORECASE):
+                        web_info["has_login_form"] = True
+
+                    break
+            except Exception:
+                continue
+
+    return web_info
 
 
 async def _check_subdomain_status(
     subdomain: str,
+    domain: str,
     resolver: dns.asyncresolver.Resolver,
     sem: asyncio.Semaphore
 ) -> Dict[str, Any]:
     """
-    Resuelve IP y CNAME de cada subdominio y verifica riesgo de Subdomain Takeover.
+    Resuelve IP y CNAME de cada subdominio, verifica riesgo de Subdomain Takeover
+    y sondea si mantiene una página web abierta.
     """
     async with sem:
         cname_target = None
@@ -145,6 +221,18 @@ async def _check_subdomain_status(
                         pass
                     break
 
+        web_info = {
+            "web_active": False,
+            "url": None,
+            "http_status": None,
+            "page_title": None,
+            "server_tech": None,
+            "has_login_form": False,
+            "is_main_site": subdomain in (domain, f"www.{domain}")
+        }
+        if is_alive:
+            web_info = await _probe_live_web_page(subdomain, domain)
+
         return {
             "subdomain": subdomain,
             "is_alive": is_alive,
@@ -152,7 +240,14 @@ async def _check_subdomain_status(
             "cname": cname_target,
             "takeover_vulnerable": takeover_risk,
             "vulnerable_cloud_service": vulnerable_service,
-            "takeover_detail": takeover_reason
+            "takeover_detail": takeover_reason,
+            "web_active": web_info["web_active"],
+            "web_url": web_info["url"],
+            "http_status": web_info["http_status"],
+            "page_title": web_info["page_title"],
+            "server_tech": web_info["server_tech"],
+            "has_login_form": web_info["has_login_form"],
+            "is_main_site": web_info["is_main_site"]
         }
 
 
@@ -254,9 +349,9 @@ async def _check_rdap_expiration(domain: str, resolver: dns.asyncresolver.Resolv
     return rdap_info
 
 
-async def scan_shadow_dns_and_takeover(domain: str, max_subdomains: int = 45) -> Dict[str, Any]:
+async def scan_shadow_dns_and_takeover(domain: str, max_subdomains: int = 55) -> Dict[str, Any]:
     """
-    Módulo 2: Sentinel Shadow & Dangling DNS Guard + Detector de Accesos Huérfanos de Ex-Proveedores.
+    Módulo 2: Sentinel Shadow & Dangling DNS Guard + Buscador de Páginas Web Abiertas y Portales Olvidados.
     """
     clean_domain = domain.strip().lower()
 
@@ -264,21 +359,65 @@ async def scan_shadow_dns_and_takeover(domain: str, max_subdomains: int = 45) ->
     resolver.timeout = 2.0
     resolver.lifetime = 2.0
 
-    discovered_subs, rdap_data = await asyncio.gather(
+    (osint_subs, dict_subs), rdap_data = await asyncio.gather(
         _fetch_ct_subdomains(clean_domain),
         _check_rdap_expiration(clean_domain, resolver)
     )
 
-    subs_to_check = discovered_subs[:max_subdomains]
+    # Priorizar dominio raíz + hallazgos reales en CT/PassiveDNS y luego completar con diccionario
+    priority_list: List[str] = [clean_domain, f"www.{clean_domain}"]
+    for s in osint_subs:
+        if s not in priority_list:
+            priority_list.append(s)
+    for s in dict_subs:
+        if s not in priority_list:
+            priority_list.append(s)
+
+    subs_to_check = priority_list[:max_subdomains]
 
     sem = asyncio.Semaphore(15)
-    tasks = [_check_subdomain_status(sub, resolver, sem) for sub in subs_to_check]
+    tasks = [_check_subdomain_status(sub, clean_domain, resolver, sem) for sub in subs_to_check]
     sub_results = await asyncio.gather(*tasks)
 
     active_subdomains = [s for s in sub_results if s["is_alive"] or s["cname"]]
     dangling_takeovers = [s for s in sub_results if s["takeover_vulnerable"]]
 
-    # Detectar subdominios administrativos o ambientes de desarrollo olvidados por ex-proveedores
+    # Clasificar páginas web activas (principales vs. páginas/portales anexos abiertos)
+    active_web_sites = []
+    additional_open_web_pages = []
+    seen_main_site = False
+
+    for s in active_subdomains:
+        if s.get("web_active"):
+            sub_name = s["subdomain"]
+            role_label = "Sitio Web Principal" if s.get("is_main_site") else "Página / Portal Web Anexo"
+            if sub_name.endswith(f".{clean_domain}"):
+                prefix = sub_name[:-len(f".{clean_domain}")].split(".")[0]
+                if prefix in HIGH_RISK_SUBDOMAIN_PREFIXES:
+                    role_label = HIGH_RISK_SUBDOMAIN_PREFIXES[prefix]
+
+            site_entry = {
+                "subdomain": sub_name,
+                "url": s.get("web_url") or f"https://{sub_name}",
+                "page_title": s.get("page_title") or "Sitio Web Activo (Sin título HTML)",
+                "http_status": s.get("http_status"),
+                "server_tech": s.get("server_tech"),
+                "has_login_form": s.get("has_login_form", False),
+                "role": role_label,
+                "ips": s["ips"],
+                "is_main_site": s.get("is_main_site", False)
+            }
+
+            if s.get("is_main_site"):
+                # Consolidar empresa.cl y www.empresa.cl como 1 solo sitio principal para no duplicar el conteo al cliente
+                if not seen_main_site:
+                    seen_main_site = True
+                    active_web_sites.append(site_entry)
+            else:
+                active_web_sites.append(site_entry)
+                additional_open_web_pages.append(site_entry)
+
+    # Detectar subdominios administrativos, paneles o páginas anexas olvidadas
     exposed_admin_or_dev_portals = []
     for s in active_subdomains:
         sub_name = s["subdomain"]
@@ -288,18 +427,35 @@ async def scan_shadow_dns_and_takeover(domain: str, max_subdomains: int = 45) ->
                 exposed_admin_or_dev_portals.append({
                     "subdomain": sub_name,
                     "role": HIGH_RISK_SUBDOMAIN_PREFIXES[prefix],
-                    "ips": s["ips"]
+                    "ips": s["ips"],
+                    "web_active": s.get("web_active", False),
+                    "page_title": s.get("page_title")
+                })
+            elif s.get("web_active") and not s.get("is_main_site"):
+                # Si es un subdominio personalizado (ej. becas2022.empresa.cl) con web abierta, incluirlo también
+                exposed_admin_or_dev_portals.append({
+                    "subdomain": sub_name,
+                    "role": f"Página Web Anexa Abierta ({s.get('page_title') or sub_name})",
+                    "ips": s["ips"],
+                    "web_active": True,
+                    "page_title": s.get("page_title")
                 })
 
     status = "clean"
     days_exp = rdap_data.get("days_until_expiration")
     if len(dangling_takeovers) > 0 or (days_exp is not None and days_exp < 15):
         status = "critical"
-    elif len(active_subdomains) > 15 or len(exposed_admin_or_dev_portals) > 0 or (days_exp is not None and days_exp < 45):
+    elif (
+        len(active_subdomains) > 15
+        or len(exposed_admin_or_dev_portals) > 0
+        or len(additional_open_web_pages) > 0
+        or (days_exp is not None and days_exp < 45)
+    ):
         status = "warning"
 
     drift_payload = {
         "active_subs": [s["subdomain"] for s in active_subdomains],
+        "active_web_pages": [w["subdomain"] for w in active_web_sites],
         "takeovers": [s["subdomain"] for s in dangling_takeovers],
         "admin_portals": [p["subdomain"] for p in exposed_admin_or_dev_portals],
         "nameservers": rdap_data["nameservers"]
@@ -314,6 +470,10 @@ async def scan_shadow_dns_and_takeover(domain: str, max_subdomains: int = 45) ->
         "status": status,
         "total_candidates_evaluated": len(subs_to_check),
         "active_subdomains_count": len(active_subdomains),
+        "active_web_sites_count": len(active_web_sites),
+        "active_web_sites": active_web_sites[:20],
+        "additional_open_web_pages_count": len(additional_open_web_pages),
+        "additional_open_web_pages": additional_open_web_pages[:15],
         "takeover_vulnerable_count": len(dangling_takeovers),
         "dangling_takeovers": dangling_takeovers,
         "exposed_admin_or_dev_portals": exposed_admin_or_dev_portals,
