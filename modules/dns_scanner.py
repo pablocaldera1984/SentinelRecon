@@ -427,30 +427,37 @@ async def unmask_hidden_server_and_neighbors(
     smtp_task = _grab_smtp_banner_hostname(ip)
 
     async def fetch_cohosted_neighbors() -> List[str]:
-        neighbors = set()
+        shodan_neighbors: List[str] = []
+        ht_neighbors: List[str] = []
         headers = {"User-Agent": "Mozilla/5.0 SentinelRecon/2.3"}
         async with httpx.AsyncClient(timeout=3.5, headers=headers) as client:
-            try:
-                r_ht = await client.get(f"https://api.hackertarget.com/reverseiplookup/?q={ip}")
-                if r_ht.status_code == 200 and "error" not in r_ht.text.lower() and "no records" not in r_ht.text.lower():
-                    for line in r_ht.text.splitlines():
-                        d_clean = line.strip().lower()
-                        if "." in d_clean and " " not in d_clean:
-                            if not d_clean.endswith(domain) and not any(x in d_clean for x in ["entel", "in-addr.arpa", "digitalocean"]):
-                                neighbors.add(d_clean)
-            except Exception:
-                pass
-
+            # 1. Prioridad 1: Shodan InternetDB (Sin límite de consultas y nombres más explícitos)
             try:
                 r_sh = await client.get(f"https://internetdb.shodan.io/{ip}")
                 if r_sh.status_code == 200:
                     for h in r_sh.json().get("hostnames", []):
                         h_clean = h.strip().lower()
                         if not h_clean.endswith(domain) and "." in h_clean:
-                            neighbors.add(h_clean)
+                            if h_clean not in shodan_neighbors:
+                                shodan_neighbors.append(h_clean)
             except Exception:
                 pass
-        return sorted(list(neighbors))
+
+            # 2. Prioridad 2: HackerTarget (Suma volumen total de vecinos cuando hay cuota gratuita disponible)
+            try:
+                r_ht = await client.get(f"https://api.hackertarget.com/reverseiplookup/?q={ip}")
+                if r_ht.status_code == 200 and "error" not in r_ht.text.lower() and "no records" not in r_ht.text.lower() and "api count" not in r_ht.text.lower():
+                    for line in r_ht.text.splitlines():
+                        d_clean = line.strip().lower()
+                        if "." in d_clean and " " not in d_clean:
+                            if not d_clean.endswith(domain) and not any(x in d_clean for x in ["entel", "in-addr.arpa", "digitalocean"]):
+                                if d_clean not in shodan_neighbors and d_clean not in ht_neighbors:
+                                    ht_neighbors.append(d_clean)
+            except Exception:
+                pass
+
+        # Retorna primero los de Shodan (para que salgan en el texto del PDF) seguidos del resto
+        return shodan_neighbors + sorted(ht_neighbors)
 
     c2083, c993, smtp_host, neighbors_list = await asyncio.gather(
         cert_2083_task, cert_993_task, smtp_task, fetch_cohosted_neighbors()
@@ -467,7 +474,7 @@ async def unmask_hidden_server_and_neighbors(
 
     clean_neighbor_roots: List[str] = []
     for n in neighbors_list:
-        root_n = re.sub(r'^(?:www|mail|cpanel|webmail|autodiscover|cpcalendars|cpcontacts|ftp)\.', '', n)
+        root_n = re.sub(r'^(?:www|mail|cpanel|webmail|autodiscover|cpcalendars|cpcontacts|ftp|admin)\.', '', n)
         if root_n != domain and root_n != master_host and root_n not in clean_neighbor_roots:
             clean_neighbor_roots.append(root_n)
 
