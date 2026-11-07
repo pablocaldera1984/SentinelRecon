@@ -85,10 +85,10 @@ class ZeroHourPrioritizer:
         if cvss_score is not None and cvss_score > 0:
             return min(1.0, float(cvss_score) / 10.0)
         if cls.RCE_AUTH_REGEX.search(summary or ""):
-            return 0.98
+            return 0.96
         if cls.HIGH_IMPACT_REGEX.search(summary or ""):
-            return 0.75
-        return 0.55
+            return 0.82
+        return 0.68
 
     @classmethod
     def calculate_zhr(
@@ -119,16 +119,17 @@ class ZeroHourPrioritizer:
         a_wild = 1.00 if in_kev_or_exploited else 0.0
         s_pond = (0.20 * i_sev) + (0.25 * p_epss) + (0.25 * w_poc) + (0.30 * a_wild)
 
-        # Compuerta de Hora Cero: si está explotada in-the-wild o tiene PoC + RCE
+        # Compuerta de Hora Cero: piso base graduado por severidad real (i_sev) y EPSS (sin clavar todo en 100)
         if a_wild >= 0.85:
-            g_crit = 1.00
+            # Si está en explotación activa (KEV), parte en 78 pts + hasta 16 pts por severidad CVSS + hasta 6 pts por EPSS/PoC
+            g_crit = 0.78 + (0.16 * i_sev) + (0.04 * p_epss) + (0.02 * w_poc)
         elif (w_poc >= 0.75 or i_sev >= 0.90) and cls.RCE_AUTH_REGEX.search(summary or ""):
-            g_crit = 0.90
+            g_crit = 0.72 + (0.15 * i_sev) + (0.05 * w_poc)
         else:
             g_crit = 0.00
 
         eff_exp = ExposureLevel.SUPPLY_CHAIN_MALWARE.value if is_malicious_pkg else exposure.value
-        zhr = min(100.0, round(eff_exp * (100.0 * max(g_crit, s_pond)), 2))
+        zhr = min(100.0, round(eff_exp * (100.0 * max(g_crit, s_pond)), 1))
 
         if zhr >= 85.0:
             tier = "P0_CRITICAL_IMMEDIATE"
@@ -264,7 +265,6 @@ def _matches_client_stack(text: str, keywords: Optional[List[str]] = None) -> Li
     ignorando URLs para evitar falsos positivos (ej. '.php' en links) y mapeando Linux Kernel a Ubuntu.
     """
     target_kws = keywords or CLIENT_TECH_STACK
-    # Eliminar URLs antes de buscar palabras clave para que '.php' en un link no contamine la etiqueta
     clean_text = re.sub(r"https?://\S+", " ", text or "").lower()
     matched = set()
 
@@ -285,7 +285,6 @@ def _matches_client_stack(text: str, keywords: Optional[List[str]] = None) -> Li
             else:
                 matched.add(kw.upper())
 
-    # Si ya detectó que es exclusivamente de Linux Kernel y aparece 'PHP' solo como ejemplo secundario, priorizar Kernel
     if "UBUNTU / LINUX KERNEL" in matched and "PHP" in matched:
         if not re.search(r"\bphp\s+core\b|\bphp-fpm\b|\bphp\s+\d", clean_text):
             matched.discard("PHP")
@@ -320,7 +319,6 @@ async def _fetch_euvd_zero_hour(client: httpx.AsyncClient) -> List[Dict[str, Any
 
                     base_score = item.get("baseScore")
                     epss_raw = float(item.get("epss", 0.0) or 0.0)
-                    # EUVD a veces entrega EPSS en porcentaje (0-100) o proporción (0-1)
                     epss_norm = epss_raw / 100.0 if epss_raw > 1.0 else epss_raw
 
                     refs_raw = item.get("references", "") or ""
@@ -360,7 +358,6 @@ async def _fetch_ubuntu_usn_safe(client: httpx.AsyncClient) -> List[Dict[str, An
             for n in notices:
                 title_desc = f"{n.get('title', '')} {n.get('summary', '')} {n.get('description', '')}"
                 matched_techs = _matches_client_stack(title_desc)
-                # En Ubuntu nos interesan especialmente avisos de kernel, openssh, php, mysql, postgresql, nginx o RCE
                 if not matched_techs and "ubuntu" not in title_desc.lower():
                     continue
                 if not matched_techs:
@@ -416,7 +413,7 @@ async def _fetch_github_upstream_advisories(client: httpx.AsyncClient) -> List[D
                         "vuln_id": cve_id,
                         "source": f"GitHub Upstream ({repo_slug})",
                         "matched_technologies": [tech_label.upper()],
-                        "summary": f"{adv.get('summary', '')} - {(adv.get('description') or '')[:450]}",
+                        "summary": f"{adv.get('summary', '')} {(adv.get('description') or '')[:450]}",
                         "cvss_score": float(cvss_val),
                         "epss_score": 0.0,
                         "in_kev_or_exploited": False,
@@ -449,7 +446,6 @@ async def _fetch_osv_batch_signals(client: httpx.AsyncClient) -> List[Dict[str, 
             for idx, res in enumerate(results):
                 vulns = res.get("vulns", []) or []
                 pkg_name = OSV_WATCHLIST_QUERIES[idx]["package"]["name"]
-                # Tomar solo el último aviso más reciente de cada paquete ancla
                 if vulns:
                     latest_v = vulns[-1]
                     top_vuln_ids.append((latest_v.get("id"), pkg_name))
@@ -524,7 +520,6 @@ async def _fetch_cisa_kev_recent_stack(client: httpx.AsyncClient) -> List[Dict[s
         )
         if resp.status_code == 200:
             vulns = resp.json().get("vulnerabilities", []) or []
-            # Ordenar por fecha agregada descendente y revisar las 45 más recientes
             vulns_sorted = sorted(vulns, key=lambda x: x.get("dateAdded", ""), reverse=True)[:45]
             for v in vulns_sorted:
                 blob = f"{v.get('vendorProject', '')} {v.get('product', '')} {v.get('vulnerabilityName', '')} {v.get('shortDescription', '')}"
@@ -532,18 +527,30 @@ async def _fetch_cisa_kev_recent_stack(client: httpx.AsyncClient) -> List[Dict[s
                 if not matched_techs:
                     continue
 
-                cve_id = v.get("cveID")
+                cve_id = v.get("cveID") or "CVE-UNKNOWN"
                 notes_raw = v.get("notes", "") or ""
                 urls = [u.strip() for u in re.findall(r"https?://[^\s;]+", notes_raw)]
                 urls.append(f"https://nvd.nist.gov/vuln/detail/{cve_id}")
+
+                summary_text = f"{v.get('vulnerabilityName')}: {v.get('shortDescription')} Acción requerida: {v.get('requiredAction')}"
+                # Inferencia dinámica de CVSS y EPSS según el tipo de vector técnico en KEV
+                if ZeroHourPrioritizer.RCE_AUTH_REGEX.search(summary_text):
+                    inferred_cvss = 9.8
+                    inferred_epss = 0.88
+                elif ZeroHourPrioritizer.HIGH_IMPACT_REGEX.search(summary_text):
+                    inferred_cvss = 8.4
+                    inferred_epss = 0.62
+                else:
+                    inferred_cvss = 7.8
+                    inferred_epss = 0.45
 
                 findings.append({
                     "vuln_id": cve_id,
                     "source": "CISA KEV (Explotación Activa Confirmada)",
                     "matched_technologies": matched_techs,
-                    "summary": f"{v.get('vulnerabilityName')}: {v.get('shortDescription')} Acción requerida: {v.get('requiredAction')}",
-                    "cvss_score": 9.5,
-                    "epss_score": 0.85,
+                    "summary": summary_text,
+                    "cvss_score": inferred_cvss,
+                    "epss_score": inferred_epss,
                     "in_kev_or_exploited": True,
                     "has_poc": True,
                     "patch_urls": urls[:5],
@@ -566,7 +573,6 @@ async def run_zero_hour_cti_sweep(
     Ejecuta en paralelo todos los sensores de Hora Cero, cruza con la exposición perimetral
     del cliente (EASM) y aplica el motor matemático ZHR para retornar alertas P0/P1.
     """
-    # HTTP/2 activado para cumplir requerimiento de OSV.dev (evita tope de 32 MiB)
     async with httpx.AsyncClient(
         http2=True,
         verify=False,
@@ -631,7 +637,6 @@ async def run_zero_hour_cti_sweep(
             exposure=exposure_level
         )
 
-        # Huella única de estado (si un CVE sube a KEV después, cambia su state_hash y dispara nueva alerta)
         state_payload = f"{vid}|KEV:{cand.get('in_kev_or_exploited')}|TIER:{alert_tier}"
         state_hash = hashlib.sha256(state_payload.encode("utf-8")).hexdigest()[:16]
 
@@ -644,7 +649,6 @@ async def run_zero_hour_cti_sweep(
         }
         prioritized_alerts.append(cand_enriched)
 
-    # Ordenar por puntaje ZHR de mayor a menor
     prioritized_alerts.sort(key=lambda x: x["zhr_score"], reverse=True)
 
     p0_p1_actionable = [

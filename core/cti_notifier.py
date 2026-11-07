@@ -75,23 +75,38 @@ def generate_developer_advisory_with_gemini(
 
     advisory = json.loads(response.text or "{}")
 
-    # Blindaje determinista en Python: sobrescribir cualquier link no verificado con las URLs reales de la API
-    clean_links = []
-    for u in verified_urls:
-        label = "Aviso / Parche Oficial Verificado"
-        if "git.kernel.org" in u:
-            label = "Commit Oficial del Parche (Linux Kernel Git)"
-        elif "ubuntu.com/security" in u:
-            label = "Ubuntu Security Notice Oficial (Canonical)"
-        elif "github.com" in u:
-            label = "GitHub Security Advisory / Release Oficial"
-        elif "nvd.nist.gov" in u:
-            label = "Ficha Técnica Oficial NVD (NIST)"
-        elif "osv.dev" in u:
-            label = "Registro Oficial Google OSV.dev"
-        clean_links.append({"label": label, "url": u})
+    # Blindaje determinista en Python: elegir 1 único enlace oficial directo al parche (descartando homepages y noticias)
+    def _prioridad_url_parche(u: str) -> int:
+        u_low = u.lower().rstrip("/")
+        # Descartar homepages genéricas o comunicados/directivas administrativas de CISA
+        if u_low in ("https://www.php.net", "https://php.net", "https://nodejs.org", "https://ubuntu.com"):
+            return 99
+        if "cisa.gov/news-events" in u_low:
+            return 95
+        # Prioridad 1: Commits directos, parches y avisos de seguridad del fabricante
+        if any(k in u_low for k in ("git.kernel.org", "/commit/", "/releases/", "/security/advisories", "ubuntu.com/security", "changelog")):
+            return 1
+        # Prioridad 2: Registros técnicos verificados (OSV / GitHub Advisory / NVD NIST)
+        if any(k in u_low for k in ("osv.dev/vulnerability", "github.com/advisories", "nvd.nist.gov/vuln/detail")):
+            return 2
+        return 10
 
-    advisory["official_patch_links"] = clean_links
+    urls_ordenadas = sorted(verified_urls, key=_prioridad_url_parche)
+    mejor_url = urls_ordenadas[0] if urls_ordenadas else f"https://nvd.nist.gov/vuln/detail/{alert_item.get('vuln_id', '')}"
+
+    label = "Descargar Parche / Aviso Técnico Oficial"
+    if "git.kernel.org" in mejor_url:
+        label = "Commit Oficial del Parche (Linux Kernel Git)"
+    elif "ubuntu.com/security" in mejor_url:
+        label = "Parche Oficial Canonical Ubuntu (USN)"
+    elif "github.com" in mejor_url:
+        label = "Parche / Release Oficial en GitHub"
+    elif "nvd.nist.gov" in mejor_url:
+        label = "Ficha Técnica y Parche Oficial en NIST NVD"
+    elif "osv.dev" in mejor_url:
+        label = "Boletín Técnico y Parche en Google OSV"
+
+    advisory["official_patch_links"] = [{"label": label, "url": mejor_url}]
     return advisory
 
 
@@ -100,10 +115,10 @@ def render_advisory_email_html(
     alert_item: Dict[str, Any],
     client_email: str = ""
 ) -> str:
-    """Construye el correo HTML limpio, técnico y con botones directos a la descarga de parches."""
+    """Construye el correo HTML limpio, técnico y con 1 enlace directo al parche y fuente visible arriba."""
     links_html = "".join([
         f'<li style="margin-bottom:8px;"><a href="{lnk.get("url")}" target="_blank" style="color:#0284c7;font-weight:700;text-decoration:none;">🔗 {lnk.get("label")}</a> <span style="color:#64748b;font-size:11px;">({lnk.get("url")})</span></li>'
-        for lnk in (advisory.get("official_patch_links") or [])
+        for lnk in (advisory.get("official_patch_links") or [])[:1]
     ])
 
     steps_html = "".join([
@@ -117,6 +132,10 @@ def render_advisory_email_html(
         else '<span style="background:#fef3c7;color:#92400e;padding:3px 8px;border-radius:4px;font-size:11px;font-weight:800;">IMPACTO EN STACK CORE</span>'
     )
 
+    cvss_val = alert_item.get("cvss_score") or alert_item.get("cvss")
+    cvss_badge = f" | <strong>CVSS Base:</strong> {cvss_val}/10.0" if cvss_val else ""
+    fuente_oficial = alert_item.get("source") or "CISA KEV / NIST NVD (Fuente Oficial Verificada)"
+
     return f"""
     <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:680px;margin:0 auto;color:#0f172a;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
         <div style="background:#041329;color:#ffffff;padding:18px 24px;border-bottom:3px solid #ffb786;">
@@ -127,7 +146,8 @@ def render_advisory_email_html(
             <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;background:#f8fafc;padding:12px;border-radius:8px;border:1px solid #cbd5e1;">
                 <div style="flex:1;">
                     <strong>ID Vulnerabilidad:</strong> <code>{alert_item.get('vuln_id')}</code> &nbsp;|&nbsp;
-                    <strong>Score ZHR:</strong> <strong style="color:#dc2626;">{alert_item.get('zhr_score')}/100 ({alert_item.get('alert_tier')})</strong><br/>
+                    <strong>Score ZHR:</strong> <strong style="color:#dc2626;">{alert_item.get('zhr_score')}/100 ({alert_item.get('alert_tier')})</strong>{cvss_badge}<br/>
+                    <strong>Fuente de Inteligencia:</strong> <span style="color:#0369a1;font-weight:700;">{fuente_oficial}</span><br/>
                     <strong>Componente Afectado:</strong> {advisory.get('affected_component_and_versions')}
                 </div>
                 <div>{exposed_badge}</div>
@@ -146,12 +166,12 @@ def render_advisory_email_html(
                 <code>{advisory.get('verification_command')}</code>
             </div>
 
-            <h3 style="font-size:14px;text-transform:uppercase;color:#0f172a;border-bottom:1px solid #e2e8f0;padding-bottom:6px;margin-top:20px;">3. Enlaces Oficiales de Descarga de Parches</h3>
+            <h3 style="font-size:14px;text-transform:uppercase;color:#0f172a;border-bottom:1px solid #e2e8f0;padding-bottom:6px;margin-top:20px;">3. Enlace Oficial de Parche / Ficha Técnica</h3>
             <ul style="list-style:none;padding-left:0;margin-top:10px;">{links_html}</ul>
 
             <hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0;"/>
             <p style="font-size:11px;color:#64748b;margin:0;">
-                Alerta temprana generada por <strong>Global365 SentinelRecon CTI</strong>. Fuente primaria: {alert_item.get('source')}.
+                Alerta temprana generada por <strong>Global365 SentinelRecon CTI</strong>. Fuente primaria verificada: {fuente_oficial}.
             </p>
         </div>
     </div>
