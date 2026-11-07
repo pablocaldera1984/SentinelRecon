@@ -33,34 +33,32 @@ def generate_developer_advisory_with_gemini(
     perimeter_profile: Dict[str, Any],
     client_name: str = "Cliente Desarrollador (EE.UU.)"
 ) -> Dict[str, Any]:
-    """
-    Usa Gemini (Structured Outputs) para transformar la señal cruda Pre-NVD en un boletín
-    técnico accionable con links directos a parches y comandos CLI para un desarrollador TI.
-    """
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         raise ValueError("Falta GEMINI_API_KEY en variables de entorno.")
 
     client = genai.Client(api_key=api_key)
+    verified_urls = alert_item.get("patch_urls") or []
 
     system_instruction = """
-    Eres el Ingeniero Principal de Ciberinteligencia de Amenazas (CTI) de Global365 SpA operando SentinelRecon Zero-Hour.
-    Tu destinatario final es un DESARROLLADOR INFORMÁTICO SENIOR muy exigente que utiliza este stack:
-    Node.js, React (Next.js), Flutter, PHP, MySQL, Supabase, PostgreSQL y Ubuntu Server.
-    
-    REGLAS ESTRICTAS:
-    1. Cero relleno comercial: ve directo al grano técnico. Explica exactamente cuál es el fallo (ej. RCE, Auth Bypass, SQLi), qué componente del stack afecta y cómo se mitiga.
-    2. Respeta y prioriza las URLs reales entregadas en `patch_urls` dentro de `official_patch_links`. Si conoces la URL canónica oficial de descarga del parche para esa tecnología (ej. https://ubuntu.com/security/notices, https://github.com/..., https://www.php.net/downloads.php), inclúyela.
-    3. Entrega siempre un comando CLI real y seguro en `cli_patch_command` (ej. `sudo apt update && sudo apt --only-upgrade install ...` o `npm install ...`) y una prueba rápida de verificación en `verification_command`.
+    Eres un Principal Security Engineer redactando un advisory técnico para un Desarrollador Senior exigente.
+    Stack del cliente: Node.js, React/Next.js, Flutter, PHP, MySQL, Supabase, PostgreSQL y Ubuntu Server.
+
+    REGLAS DE INGENIERÍA ESTRICTAS (CERO ALUCINACIONES):
+    1. PROHIBIDO INVENTAR URLs: En `official_patch_links` SOLO puedes utilizar las URLs exactas que vienen en el campo `patch_urls` de la señal de entrada. NUNCA inventes códigos GHSA-xxxx ni URLs de cisa.gov o github.com que no estén explícitamente en `patch_urls`.
+    2. CLASIFICACIÓN HONESTA DEL COMPONENTE: Si la vulnerabilidad es del Kernel de Linux o de un paquete base de Ubuntu, clasifícala como 'Ubuntu Server / Linux Kernel' sin inventar que inyecta webshells de PHP a menos que el resumen original lo diga explícitamente.
+    3. COMANDOS CLI SEGUROS DE PRODUCCIÓN:
+       - PROHIBIDO incluir `&& sudo reboot` encadenado (indica que el reinicio debe programarse en ventana de mantenimiento).
+       - PROHIBIDO agregar repositorios de terceros no oficiales como `ppa:ondrej/php`. Usa siempre los gestores estándar (`sudo apt update && sudo apt --only-upgrade install <paquete>`, `npm update`, `composer update`).
+    4. VERIFICACIÓN REAL: En `verification_command`, entrega un comando real que inspeccione la versión instalada del paquete o el changelog de seguridad (ej. `dpkg -l | grep <paquete>`, `apt-cache policy <paquete>`, `php -v`, `npm list <paquete>`). PROHIBIDO usar `echo "OK"`.
     """
 
     prompt = f"""
-    Genera el boletín de alerta rápida de vulnerabilidad para {client_name}.
-    
-    SEÑAL DETECTADA EN HORA CERO:
+    Analiza esta vulnerabilidad detectada en Hora Cero y genera el boletín técnico:
+    SEÑAL VERIFICADA:
     {json.dumps(alert_item, indent=2, ensure_ascii=False)}
-    
-    PERFIL PERIMETRAL EASM DEL CLIENTE:
+
+    PERFIL PERIMETRAL:
     {json.dumps(perimeter_profile, indent=2, ensure_ascii=False)}
     """
 
@@ -71,11 +69,30 @@ def generate_developer_advisory_with_gemini(
             system_instruction=system_instruction,
             response_mime_type="application/json",
             response_schema=DeveloperZeroHourAdvisory,
-            temperature=0.15,
+            temperature=0.0,  # Temperatura 0.0 para máxima precisión determinista
         ),
     )
 
-    return json.loads(response.text or "{}")
+    advisory = json.loads(response.text or "{}")
+
+    # Blindaje determinista en Python: sobrescribir cualquier link no verificado con las URLs reales de la API
+    clean_links = []
+    for u in verified_urls:
+        label = "Aviso / Parche Oficial Verificado"
+        if "git.kernel.org" in u:
+            label = "Commit Oficial del Parche (Linux Kernel Git)"
+        elif "ubuntu.com/security" in u:
+            label = "Ubuntu Security Notice Oficial (Canonical)"
+        elif "github.com" in u:
+            label = "GitHub Security Advisory / Release Oficial"
+        elif "nvd.nist.gov" in u:
+            label = "Ficha Técnica Oficial NVD (NIST)"
+        elif "osv.dev" in u:
+            label = "Registro Oficial Google OSV.dev"
+        clean_links.append({"label": label, "url": u})
+
+    advisory["official_patch_links"] = clean_links
+    return advisory
 
 
 def render_advisory_email_html(
