@@ -108,6 +108,71 @@ async def run_scan(payload: ScanRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error durante el escaneo: {str(e)}")
 
+# Agregar en api.py de SentinelRecon
+from typing import Optional, List
+from modules.zero_hour_cti_scanner import run_zero_hour_cti_sweep
+from core.cti_notifier import generate_developer_advisory_with_gemini, dispatch_email_and_whatsapp_alert
+
+class ZeroHourScanRequest(BaseModel):
+    client_name: str = "Cliente Desarrollador USA"
+    client_domain_or_ip: Optional[str] = None
+    client_email: Optional[str] = None
+    admin_email: str = "pablocaldera1984@gmail.com"
+    force_notify_top: bool = False
+    processed_state_hashes: Optional[List[str]] = []
+
+@app.post("/api/cti/zero-hour-scan")
+async def run_zero_hour_scan_endpoint(payload: ZeroHourScanRequest):
+    try:
+        sweep = await run_zero_hour_cti_sweep(client_domain_or_ip=payload.client_domain_or_ip)
+        seen_hashes = set(payload.processed_state_hashes or [])
+
+        # Filtrar solo alertas P0/P1 nuevas que no hayan sido notificadas antes
+        new_actionable = [
+            a for a in sweep["actionable_alerts"]
+            if a["state_hash"] not in seen_hashes
+        ]
+
+        # Si el administrador presionó "Forzar Investigación" y quiere ver el borrador del top 1 aunque no haya P0 nuevo
+        if payload.force_notify_top and not new_actionable and sweep["all_ranked_signals"]:
+            new_actionable = [sweep["all_ranked_signals"][0]]
+
+        dispatched_advisories = []
+        for alert_item in new_actionable[:2]:  # Máximo 2 alertas por ciclo para evitar saturación
+            advisory = generate_developer_advisory_with_gemini(
+                alert_item,
+                sweep["client_perimeter_profile"],
+                client_name=payload.client_name
+            )
+            notif_res = await dispatch_email_and_whatsapp_alert(
+                advisory,
+                alert_item,
+                admin_email=payload.admin_email,
+                client_email=payload.client_email or ""
+            )
+            dispatched_advisories.append({
+                "vuln_id": alert_item["vuln_id"],
+                "zhr_score": alert_item["zhr_score"],
+                "alert_tier": alert_item["alert_tier"],
+                "matched_technologies": alert_item["matched_technologies"],
+                "state_hash": alert_item["state_hash"],
+                "advisory": advisory,
+                "notification_status": notif_res
+            })
+
+        return {
+            "status": "ok",
+            "sweep_summary": {
+                "timestamp_utc": sweep["timestamp_utc"],
+                "total_evaluated": sweep["total_evaluated"],
+                "actionable_p0_p1_count": sweep["actionable_p0_p1_count"],
+                "perimeter_profile": sweep["client_perimeter_profile"]
+            },
+            "dispatched_advisories": dispatched_advisories,
+            "all_ranked_signals": sweep["all_ranked_signals"][:10]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error en Zero-Hour CTI: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn
