@@ -207,7 +207,7 @@ async def dispatch_email_and_whatsapp_alert(
     admin_phone = os.getenv("ADMIN_WHATSAPP_PHONE", "").strip()
 
     try:
-        async with httpx.AsyncClient(timeout=6.0) as client:
+        async with httpx.AsyncClient(timeout=25.0) as client:
             resp = await client.post(
                 wa_webhook_url,
                 json={
