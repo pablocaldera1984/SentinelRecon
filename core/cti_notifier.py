@@ -69,7 +69,7 @@ def generate_developer_advisory_with_gemini(
             system_instruction=system_instruction,
             response_mime_type="application/json",
             response_schema=DeveloperZeroHourAdvisory,
-            temperature=0.0,  # Temperatura 0.0 para máxima precisión determinista
+            temperature=0.0,
         ),
     )
 
@@ -165,14 +165,15 @@ async def dispatch_email_and_whatsapp_alert(
     client_email: str = ""
 ) -> Dict[str, Any]:
     """
-    1. Envía la propuesta de correo lista para revisar/reenviar a pablocaldera1984@gmail.com
+    1. Envía el correo técnico con asunto limpio a pablocaldera1984@gmail.com.
     2. Dispara el aviso inmediato por WhatsApp al teléfono de Pablo.
     """
     status_report = {"email_dispatched": False, "whatsapp_dispatched": False, "errors": []}
     html_body = render_advisory_email_html(advisory, alert_item, client_email)
-    subject = f"[REVISAR Y ENVIAR A CLIENTE] {advisory.get('email_subject')}"
 
-    # A. Envío a pablocaldera1984@gmail.com vía SMTP (App Password de Gmail)
+    # Asunto 100% limpio sin [REVISAR Y ENVIAR A CLIENTE]
+    subject = advisory.get("email_subject") or f"⚠️ [Alerta Zero-Hour] {alert_item.get('vuln_id')} - Parche Disponible"
+
     smtp_user = os.getenv("GMAIL_USER", admin_email).strip()
     smtp_pass = os.getenv("GMAIL_APP_PASSWORD", "").strip()
 
@@ -180,7 +181,7 @@ async def dispatch_email_and_whatsapp_alert(
         try:
             msg = MIMEMultipart("alternative")
             msg["Subject"] = subject
-            msg["From"] = smtp_user
+            msg["From"] = f"Global365 Security <{smtp_user}>"
             msg["To"] = admin_email
             msg.attach(MIMEText(html_body, "html", "utf-8"))
 
@@ -191,13 +192,12 @@ async def dispatch_email_and_whatsapp_alert(
         except Exception as e:
             status_report["errors"].append(f"SMTP Error: {str(e)}")
 
-    # B. Disparo de mensaje WhatsApp inmediato (vía tu backend enviar-alerta-sentinel o Webhook directo)
     wa_message = (
         f"🚨 *SENTINEL ZERO-HOUR ALERT*\n"
         f"• *CVE/ID:* {alert_item.get('vuln_id')} ({alert_item.get('alert_tier')})\n"
         f"• *Stack:* {', '.join(alert_item.get('matched_technologies', []))}\n"
         f"• *Detalle:* {advisory.get('whatsapp_tactical_summary')}\n\n"
-        f"📩 *Propuesta de correo con links a parches ya disponible en tu Gmail ({admin_email}) lista para reenviar al cliente.*"
+        f"📩 *Correo listo en tu bandeja ({admin_email}) con asunto: {subject}*"
     )
 
     wa_webhook_url = os.getenv(

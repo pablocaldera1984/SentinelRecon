@@ -15,9 +15,9 @@ import httpx
 # =====================================================================
 
 CLIENT_TECH_STACK = [
-    "node", "react", "nextjs", "flutter", "dart",
+    "node", "nodejs", "react", "nextjs", "flutter", "dart",
     "php", "mysql", "supabase", "gotrue", "postgrest",
-    "postgresql", "postgres", "ubuntu", "openssh", "nginx"
+    "postgresql", "postgres", "ubuntu", "linux kernel", "openssh", "nginx"
 ]
 
 # Paquetes ancla representativos para consulta masiva HTTP/2 en OSV.dev
@@ -259,14 +259,38 @@ async def fingerprint_client_perimeter_stack(target_domain_or_ip: Optional[str])
 # =====================================================================
 
 def _matches_client_stack(text: str, keywords: Optional[List[str]] = None) -> List[str]:
-    """Verifica qué tecnologías del stack del cliente están mencionadas en el aviso."""
+    """
+    Verifica qué tecnologías del stack del cliente están mencionadas en el aviso,
+    ignorando URLs para evitar falsos positivos (ej. '.php' en links) y mapeando Linux Kernel a Ubuntu.
+    """
     target_kws = keywords or CLIENT_TECH_STACK
-    t_low = (text or "").lower()
-    matched = []
+    # Eliminar URLs antes de buscar palabras clave para que '.php' en un link no contamine la etiqueta
+    clean_text = re.sub(r"https?://\S+", " ", text or "").lower()
+    matched = set()
+
+    if re.search(r"\blinux\s+kernel\b|\bkernel\b.*\blinux\b", clean_text):
+        matched.add("UBUNTU / LINUX KERNEL")
+
     for kw in target_kws:
-        if re.search(rf"\b{re.escape(kw.lower())}\b", t_low):
-            matched.append(kw.upper())
-    return sorted(list(set(matched)))
+        kw_low = kw.lower()
+        if kw_low == "linux kernel":
+            continue
+        if re.search(rf"\b{re.escape(kw_low)}\b", clean_text):
+            if kw_low == "ubuntu":
+                matched.add("UBUNTU / LINUX KERNEL" if "kernel" in clean_text else "UBUNTU")
+            elif kw_low in ("postgres", "postgresql"):
+                matched.add("POSTGRESQL")
+            elif kw_low in ("node", "nodejs"):
+                matched.add("NODE.JS")
+            else:
+                matched.add(kw.upper())
+
+    # Si ya detectó que es exclusivamente de Linux Kernel y aparece 'PHP' solo como ejemplo secundario, priorizar Kernel
+    if "UBUNTU / LINUX KERNEL" in matched and "PHP" in matched:
+        if not re.search(r"\bphp\s+core\b|\bphp-fpm\b|\bphp\s+\d", clean_text):
+            matched.discard("PHP")
+
+    return sorted(list(matched))
 
 
 async def _fetch_euvd_zero_hour(client: httpx.AsyncClient) -> List[Dict[str, Any]]:
