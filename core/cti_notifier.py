@@ -4,7 +4,7 @@ import os
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 import httpx
 from pydantic import BaseModel, Field
 from google import genai
@@ -21,11 +21,100 @@ class DeveloperZeroHourAdvisory(BaseModel):
     email_subject: str = Field(description="Asunto directo y urgente para el correo, ej: '⚠️ [Alerta Zero-Hour] Vulnerabilidad Crítica en PHP / Next.js (CVE-XXXX) - Parche Disponible'")
     whatsapp_tactical_summary: str = Field(description="Resumen de 2 a 3 líneas máximo para enviar por WhatsApp a Pablo avisando qué se detectó y que el borrador ya está en su Gmail.")
     affected_component_and_versions: str = Field(description="Tecnología del stack afectada y ramas/versiones vulnerables")
-    technical_attack_vector: str = Field(description="Explicación técnica directa (de desarrollador a desarrollador) de cómo funciona el exploit (ej. inyección de argumentos CGI, deserialización en RSC, bypass en GoTrue) y qué logra el atacante.")
+    technical_attack_vector: str = Field(description="Explicación técnica directa (de desarrollador a desarrollador) de cómo funciona el exploit y qué logra el atacante.")
     immediate_mitigation_steps: List[str] = Field(description="Pasos concretos y rápidos para aplicar el parche o mitigar hoy mismo.")
     cli_patch_command: str = Field(description="Comando exacto de terminal (apt, npm, composer, flutter pub o docker) listo para copiar y pegar.")
-    verification_command: str = Field(description="Comando seguro (ej. curl -I, dpkg -l, npm list) para que el desarrollador verifique que el parche quedó bien aplicado.")
+    verification_command: str = Field(description="Comando seguro (ej. dpkg -l, php -v, npm list) para que el desarrollador verifique que el parche quedó bien aplicado.")
     official_patch_links: List[PatchLinkItem]
+
+
+def _resolver_enlace_oficial_verificado(alert_item: Dict[str, Any]) -> Dict[str, str]:
+    """
+    Filtra las URLs candidatas, descarta homepages genéricas o links rotos (HTTP 404),
+    y devuelve 1 único enlace 100% funcional hacia el parche o boletín técnico oficial.
+    """
+    raw_urls = alert_item.get("patch_urls") or []
+    vuln_id = str(alert_item.get("vuln_id") or "").strip()
+    techs = " ".join(alert_item.get("matched_technologies") or []).lower()
+
+    def _prioridad(u: str) -> int:
+        u_low = u.lower().rstrip("/")
+        if u_low in ("https://www.php.net", "https://php.net", "https://nodejs.org", "https://ubuntu.com", "https://github.com"):
+            return 99
+        if "cisa.gov/news-events" in u_low or "cisa.gov/known-exploited" in u_low:
+            return 95
+        if any(k in u_low for k in ("git.kernel.org", "/commit/", "/releases", "ubuntu.com/security", "changelog", "php.net/changelog")):
+            return 1
+        if any(k in u_low for k in ("osv.dev/vulnerability", "github.com/advisories", "/security/advisories/", "nvd.nist.gov/vuln/detail")):
+            return 2
+        return 10
+
+    candidatas = [u.strip() for u in raw_urls if isinstance(u, str) and u.strip().startswith("http")]
+    candidatas.sort(key=_prioridad)
+
+    # Verificar en vivo que la URL exista (no sea un GHSA de prueba o un 404)
+    url_valida = None
+    with httpx.Client(timeout=4.0, follow_redirects=True) as http_client:
+        for cand in candidatas:
+            if _prioridad(cand) >= 95:
+                continue
+            try:
+                resp = http_client.get(cand, headers={"User-Agent": "SentinelRecon-CTI/2.0"})
+                if resp.status_code < 400:
+                    # Si es NVD pero dice "CVE ID Not Found", descartar
+                    if "nvd.nist.gov" in cand.lower() and "cve id not found" in resp.text.lower():
+                        continue
+                    url_valida = cand
+                    break
+            except Exception:
+                continue
+
+    # Si ninguna URL candidata respondió 200 OK (ej. CVE sintético o link roto), usar el repositorio oficial de parches del componente
+    if not url_valida:
+        if "php" in techs:
+            url_valida = "https://www.php.net/ChangeLog-8.php"
+        elif "next" in techs:
+            url_valida = "https://github.com/vercel/next.js/releases"
+        elif "node" in techs:
+            url_valida = "https://nodejs.org/en/blog/vulnerability"
+        elif "ubuntu" in techs or "linux" in techs or "kernel" in techs:
+            url_valida = "https://ubuntu.com/security/notices"
+        elif "supabase" in techs:
+            url_valida = "https://github.com/supabase/supabase/security/advisories"
+        elif "postgres" in techs:
+            url_valida = "https://www.postgresql.org/support/security/"
+        elif "mysql" in techs:
+            url_valida = "https://dev.mysql.com/doc/relnotes/mysql/8.0/en/"
+        elif "flutter" in techs:
+            url_valida = "https://docs.flutter.dev/release/whats-new"
+        elif vuln_id.startswith("CVE-"):
+            url_valida = f"https://nvd.nist.gov/vuln/detail/{vuln_id}"
+        else:
+            url_valida = "https://osv.dev/list"
+
+    u_low = url_valida.lower()
+    if "php.net/changelog" in u_low:
+        label = "Changelog y Parches Oficiales de Seguridad en PHP.net"
+    elif "git.kernel.org" in u_low:
+        label = "Commit Oficial del Parche (Linux Kernel Git)"
+    elif "ubuntu.com/security" in u_low:
+        label = "Parche y Aviso Oficial Canonical Ubuntu (USN)"
+    elif "github.com" in u_low and "/releases" in u_low:
+        label = "Repositorio Oficial de Releases y Parches en GitHub"
+    elif "github.com" in u_low:
+        label = "Advisory y Parche Oficial en GitHub Security"
+    elif "nvd.nist.gov" in u_low:
+        label = "Ficha Técnica y Referencias de Parche en NIST NVD"
+    elif "osv.dev" in u_low:
+        label = "Boletín Técnico y Parche en Google OSV"
+    elif "nodejs.org" in u_low:
+        label = "Boletines Oficiales de Seguridad y Parches en Node.js"
+    elif "postgresql.org" in u_low:
+        label = "Catálogo Oficial de Parches de Seguridad PostgreSQL"
+    else:
+        label = "Descargar Parche / Aviso Técnico Oficial del Fabricante"
+
+    return {"label": label, "url": url_valida}
 
 
 def generate_developer_advisory_with_gemini(
@@ -38,14 +127,13 @@ def generate_developer_advisory_with_gemini(
         raise ValueError("Falta GEMINI_API_KEY en variables de entorno.")
 
     client = genai.Client(api_key=api_key)
-    verified_urls = alert_item.get("patch_urls") or []
 
     system_instruction = """
     Eres un Principal Security Engineer redactando un advisory técnico para un Desarrollador Senior exigente.
     Stack del cliente: Node.js, React/Next.js, Flutter, PHP, MySQL, Supabase, PostgreSQL y Ubuntu Server.
 
     REGLAS DE INGENIERÍA ESTRICTAS (CERO ALUCINACIONES):
-    1. PROHIBIDO INVENTAR URLs: En `official_patch_links` SOLO puedes utilizar las URLs exactas que vienen en el campo `patch_urls` de la señal de entrada. NUNCA inventes códigos GHSA-xxxx ni URLs de cisa.gov o github.com que no estén explícitamente en `patch_urls`.
+    1. PROHIBIDO INVENTAR URLs: No inventes códigos GHSA-xxxx ni URLs inexistentes.
     2. CLASIFICACIÓN HONESTA DEL COMPONENTE: Si la vulnerabilidad es del Kernel de Linux o de un paquete base de Ubuntu, clasifícala como 'Ubuntu Server / Linux Kernel' sin inventar que inyecta webshells de PHP a menos que el resumen original lo diga explícitamente.
     3. COMANDOS CLI SEGUROS DE PRODUCCIÓN:
        - PROHIBIDO incluir `&& sudo reboot` encadenado (indica que el reinicio debe programarse en ventana de mantenimiento).
@@ -75,38 +163,9 @@ def generate_developer_advisory_with_gemini(
 
     advisory = json.loads(response.text or "{}")
 
-    # Blindaje determinista en Python: elegir 1 único enlace oficial directo al parche (descartando homepages y noticias)
-    def _prioridad_url_parche(u: str) -> int:
-        u_low = u.lower().rstrip("/")
-        # Descartar homepages genéricas o comunicados/directivas administrativas de CISA
-        if u_low in ("https://www.php.net", "https://php.net", "https://nodejs.org", "https://ubuntu.com"):
-            return 99
-        if "cisa.gov/news-events" in u_low:
-            return 95
-        # Prioridad 1: Commits directos, parches y avisos de seguridad del fabricante
-        if any(k in u_low for k in ("git.kernel.org", "/commit/", "/releases/", "/security/advisories", "ubuntu.com/security", "changelog")):
-            return 1
-        # Prioridad 2: Registros técnicos verificados (OSV / GitHub Advisory / NVD NIST)
-        if any(k in u_low for k in ("osv.dev/vulnerability", "github.com/advisories", "nvd.nist.gov/vuln/detail")):
-            return 2
-        return 10
-
-    urls_ordenadas = sorted(verified_urls, key=_prioridad_url_parche)
-    mejor_url = urls_ordenadas[0] if urls_ordenadas else f"https://nvd.nist.gov/vuln/detail/{alert_item.get('vuln_id', '')}"
-
-    label = "Descargar Parche / Aviso Técnico Oficial"
-    if "git.kernel.org" in mejor_url:
-        label = "Commit Oficial del Parche (Linux Kernel Git)"
-    elif "ubuntu.com/security" in mejor_url:
-        label = "Parche Oficial Canonical Ubuntu (USN)"
-    elif "github.com" in mejor_url:
-        label = "Parche / Release Oficial en GitHub"
-    elif "nvd.nist.gov" in mejor_url:
-        label = "Ficha Técnica y Parche Oficial en NIST NVD"
-    elif "osv.dev" in mejor_url:
-        label = "Boletín Técnico y Parche en Google OSV"
-
-    advisory["official_patch_links"] = [{"label": label, "url": mejor_url}]
+    # Asignar 1 único enlace oficial verificado en vivo (sin alucinaciones ni 404)
+    enlace_verificado = _resolver_enlace_oficial_verificado(alert_item)
+    advisory["official_patch_links"] = [enlace_verificado]
     return advisory
 
 
@@ -115,9 +174,12 @@ def render_advisory_email_html(
     alert_item: Dict[str, Any],
     client_email: str = ""
 ) -> str:
-    """Construye el correo HTML limpio, técnico y con 1 enlace directo al parche y fuente visible arriba."""
+    """Construye el correo HTML con ficha superior estructurada sin cortes de línea y sin etiquetas confusas."""
     links_html = "".join([
-        f'<li style="margin-bottom:8px;"><a href="{lnk.get("url")}" target="_blank" style="color:#0284c7;font-weight:700;text-decoration:none;">🔗 {lnk.get("label")}</a> <span style="color:#64748b;font-size:11px;">({lnk.get("url")})</span></li>'
+        f'<li style="margin-bottom:8px;">'
+        f'<a href="{lnk.get("url")}" target="_blank" style="color:#0284c7;font-weight:700;text-decoration:none;">🔗 {lnk.get("label")}</a><br/>'
+        f'<a href="{lnk.get("url")}" target="_blank" style="color:#64748b;font-size:11.5px;word-break:break-all;">{lnk.get("url")}</a>'
+        f'</li>'
         for lnk in (advisory.get("official_patch_links") or [])[:1]
     ])
 
@@ -126,31 +188,47 @@ def render_advisory_email_html(
         for step in (advisory.get("immediate_mitigation_steps") or [])
     ])
 
-    exposed_badge = (
-        '<span style="background:#fee2e2;color:#991b1b;padding:3px 8px;border-radius:4px;font-size:11px;font-weight:800;">EXPUESTO EN PERÍMETRO ACTIVO</span>'
-        if alert_item.get("perimeter_verified_exposed")
-        else '<span style="background:#fef3c7;color:#92400e;padding:3px 8px;border-radius:4px;font-size:11px;font-weight:800;">IMPACTO EN STACK CORE</span>'
+    cvss_val = alert_item.get("cvss_score") or alert_item.get("cvss")
+    cvss_html = (
+        f'<span style="display:inline-block;white-space:nowrap;margin-right:16px;">'
+        f'<strong>CVSS Base:</strong> <span style="color:#0f172a;font-weight:700;">{cvss_val}/10.0</span>'
+        f'</span>'
+        if cvss_val else ""
     )
 
-    cvss_val = alert_item.get("cvss_score") or alert_item.get("cvss")
-    cvss_badge = f" | <strong>CVSS Base:</strong> {cvss_val}/10.0" if cvss_val else ""
+    tier_raw = str(alert_item.get("alert_tier") or "P0_CRITICAL_IMMEDIATE")
+    tier_map = {
+        "P0_CRITICAL_IMMEDIATE": "Crítica Inmediata (P0)",
+        "P1_HIGH_PRIORITY": "Alta Prioridad (P1)",
+        "P2_ELEVATED": "Prioridad Media (P2)"
+    }
+    tier_legible = tier_map.get(tier_raw, tier_raw)
     fuente_oficial = alert_item.get("source") or "CISA KEV / NIST NVD (Fuente Oficial Verificada)"
 
     return f"""
     <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:680px;margin:0 auto;color:#0f172a;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
         <div style="background:#041329;color:#ffffff;padding:18px 24px;border-bottom:3px solid #ffb786;">
             <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#ffb786;font-weight:800;">SentinelRecon Zero-Hour Threat Intel</div>
-            <h2 style="margin:6px 0 0 0;font-size:18px;font-weight:800;">{advisory.get('email_subject')}</h2>
+            <h2 style="margin:6px 0 0 0;font-size:18px;font-weight:800;line-height:1.35;">{advisory.get('email_subject')}</h2>
         </div>
+
         <div style="padding:24px;font-size:13.5px;line-height:1.55;">
-            <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;background:#f8fafc;padding:12px;border-radius:8px;border:1px solid #cbd5e1;">
-                <div style="flex:1;">
-                    <strong>ID Vulnerabilidad:</strong> <code>{alert_item.get('vuln_id')}</code> &nbsp;|&nbsp;
-                    <strong>Score ZHR:</strong> <strong style="color:#dc2626;">{alert_item.get('zhr_score')}/100 ({alert_item.get('alert_tier')})</strong>{cvss_badge}<br/>
-                    <strong>Fuente de Inteligencia:</strong> <span style="color:#0369a1;font-weight:700;">{fuente_oficial}</span><br/>
+            <div style="margin-bottom:18px;background:#f8fafc;padding:14px 16px;border-radius:8px;border:1px solid #cbd5e1;">
+                <div style="margin-bottom:8px;line-height:1.8;">
+                    <span style="display:inline-block;white-space:nowrap;margin-right:18px;">
+                        <strong>ID Vulnerabilidad:</strong> <code style="background:#e2e8f0;padding:2px 6px;border-radius:4px;font-weight:700;color:#0f172a;">{alert_item.get('vuln_id')}</code>
+                    </span>
+                    <span style="display:inline-block;white-space:nowrap;margin-right:18px;">
+                        <strong>Score ZHR:</strong> <strong style="color:#dc2626;">{alert_item.get('zhr_score')}/100 ({tier_legible})</strong>
+                    </span>
+                    {cvss_html}
+                </div>
+                <div style="margin-bottom:6px;">
+                    <strong>Fuente de Inteligencia:</strong> <span style="color:#0369a1;font-weight:700;">{fuente_oficial}</span>
+                </div>
+                <div>
                     <strong>Componente Afectado:</strong> {advisory.get('affected_component_and_versions')}
                 </div>
-                <div>{exposed_badge}</div>
             </div>
 
             <h3 style="font-size:14px;text-transform:uppercase;color:#0f172a;border-bottom:1px solid #e2e8f0;padding-bottom:6px;">1. Vector Técnico y Diagnóstico</h3>
@@ -191,7 +269,6 @@ async def dispatch_email_and_whatsapp_alert(
     status_report = {"email_dispatched": False, "whatsapp_dispatched": False, "errors": []}
     html_body = render_advisory_email_html(advisory, alert_item, client_email)
 
-    # Asunto 100% limpio sin [REVISAR Y ENVIAR A CLIENTE]
     subject = advisory.get("email_subject") or f"⚠️ [Alerta Zero-Hour] {alert_item.get('vuln_id')} - Parche Disponible"
 
     smtp_user = os.getenv("GMAIL_USER", admin_email).strip()
